@@ -1,6 +1,7 @@
 package tutorial.command
 
 import tutorial.domain.Address
+import tutorial.domain.Contact
 import tutorial.domain.Employment
 import tutorial.domain.FullName
 import tutorial.domain.Person
@@ -19,6 +20,7 @@ data class UpdatePerson(
     val id: PersonId,
     val name: FullName,
     val nickname: String?,
+    val contact: Contact,
     val addresses: List<Address>,
     val employment: Employment,
     val salary: Money,
@@ -27,6 +29,7 @@ data class UpdatePerson(
     fun applyTo(current: Person): Person = current.copy(
         name = name,
         nickname = nickname,
+        contact = contact,
         addresses = addresses,
         employment = employment,
         salary = salary,

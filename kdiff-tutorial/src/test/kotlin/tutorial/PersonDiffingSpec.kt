@@ -23,6 +23,11 @@ class PersonDiffingSpec : FunSpec({
             listOf("name.family")
     }
 
+    test("a value object inside a value object reports two levels down") {
+        paths(PERSON.copy(contact = PERSON.contact.copy(phone = PHONE.copy(number = "7700900999"))))
+            .shouldContainExactly(listOf("contact.phone.number"))
+    }
+
     test("a keyed list reports an edit under the element's key, however deep the scope") {
         paths(PERSON.copy(addresses = listOf(HOME.copy(city = "Ockham"), WORK))) shouldContainExactly
             listOf("addresses[id=A1].city")

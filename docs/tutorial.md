@@ -27,6 +27,7 @@ data class Person(
     val id: PersonId,
     val name: FullName,
     val nickname: String?,
+    val contact: Contact,
     val addresses: List<Address>,
     val employment: Employment,
     val salary: Money,
@@ -62,6 +63,16 @@ data class Address(
 )
 ```
 
+A contact holds a phone, so the model is three levels deep at one property — a changed number is
+reported at `contact.phone.number`:
+
+<!-- from: kdiff-tutorial/src/main/kotlin/tutorial/domain/Contact.kt -->
+```kotlin
+data class Contact(val email: String?, val phone: Phone)
+
+data class Phone(val country: String, val number: String)
+```
+
 Employment is sealed, so a change of subclass is a change of kind rather than of value:
 
 <!-- from: kdiff-tutorial/src/main/kotlin/tutorial/domain/Employment.kt -->
@@ -92,6 +103,7 @@ Everything kdiff needs is a list of properties and how to compare each. One call
 val PersonDiffer: Differ<Person> = differ {
     nested(Person::name, FullNameDiffer)
     field(Person::nickname)
+    nested(Person::contact, ContactDiffer)
     keyedList(Person::addresses, Address::id, AddressDiffer)
     nested(Person::employment, EmploymentDiffer)
     nested(Person::salary, MoneyDiffer)
@@ -165,6 +177,7 @@ data class UpdatePerson(
     val id: PersonId,
     val name: FullName,
     val nickname: String?,
+    val contact: Contact,
     val addresses: List<Address>,
     val employment: Employment,
     val salary: Money,
@@ -182,6 +195,7 @@ to the current person to produce the person the caller is asking for:
     fun applyTo(current: Person): Person = current.copy(
         name = name,
         nickname = nickname,
+        contact = contact,
         addresses = addresses,
         employment = employment,
         salary = salary,
@@ -225,6 +239,15 @@ something to diff.
             on(Person::name) { add(PersonRenamed(desired.id, current.name, desired.name)) }
             on(Person::nickname) { add(NicknameChanged(desired.id, current.nickname, desired.nickname)) }
 
+            under(Person::contact) {
+                on(Contact::email) { add(EmailChanged(desired.id, current.contact.email, desired.contact.email)) }
+
+                under(Contact::phone) {
+                    on(Phone::number) { add(PhoneNumberChanged(desired.id, wasPhone.number, nowPhone.number)) }
+                    on(Phone::country) { add(PhoneCountryCorrected(desired.id, wasPhone.country, nowPhone.country)) }
+                }
+            }
+
             onEach(Person::addresses, Address::id) {
                 added { add(AddressAdded(desired.id, it)) }
                 removed { add(AddressRemoved(desired.id, it)) }
@@ -244,7 +267,7 @@ something to diff.
     }
 ```
 
-Four things are happening there that are worth naming.
+Five things are happening there that are worth naming.
 
 **A property is named by reference, so a typo does not compile.** `Person::nickanme` is a compile
 error; `"nickanme"` would have been a perfectly good `String` matching nothing, for ever.
@@ -255,6 +278,16 @@ once for that element and hands over its key.
 
 **Elements and keys arrive at their own types.** `added` receives an `Address`, `moved` receives an
 `AddressId` — no casts, no `as?`, no strings.
+
+**A value object is framed with `under`, and frames nest as deep as the model does.** Inside a frame
+every route means what it means at the top level, one level down, so `on(Contact::email)` names a
+property of `Contact` and the frame inside it names properties of `Phone`. Three events come out of one
+value object because the domain distinguishes them: reaching a new number is not correcting a dialling
+code. A change no handler names at any depth still arrives at the single `otherwise` below.
+
+The frame bodies hold nothing but route declarations, which is deliberate: `under` runs its body when
+the routing is *declared*, not when a change arrives, so `wasPhone` and `nowPhone` are read above the
+routing rather than inside the frame that uses them.
 
 **`otherwise` is the audit branch, and it is visible.** `tags` is tracked because a change to it is
 worth recording, but the domain has no operation for it, so it lands there rather than in an `else`
@@ -324,6 +357,7 @@ data class Person(
     @DiffIgnore val id: PersonId,
     val name: FullName,
     val nickname: String?,
+    val contact: Contact,
     val addresses: List<Address>,
     val employment: Employment,
     @DiffWith(MoneyDiffer::class) val salary: Money,

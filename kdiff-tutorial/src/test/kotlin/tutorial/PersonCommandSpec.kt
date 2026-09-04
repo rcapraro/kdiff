@@ -9,6 +9,7 @@ import tutorial.app.InMemoryPersonRepository
 import tutorial.app.UpdatePersonHandler
 import tutorial.command.TouchPerson
 import tutorial.command.UpdatePerson
+import tutorial.domain.Contact
 import tutorial.domain.FullName
 import tutorial.domain.Person
 import tutorial.domain.Retired
@@ -16,9 +17,12 @@ import tutorial.event.AddressAdded
 import tutorial.event.AddressEdited
 import tutorial.event.AddressRemoved
 import tutorial.event.AddressesReordered
+import tutorial.event.EmailChanged
 import tutorial.event.EmploymentChanged
 import tutorial.event.NicknameChanged
 import tutorial.event.PersonRenamed
+import tutorial.event.PhoneCountryCorrected
+import tutorial.event.PhoneNumberChanged
 import tutorial.event.SalaryAdjusted
 import tutorial.money.Money
 
@@ -26,6 +30,7 @@ private fun Person.asCommand() = UpdatePerson(
     id = id,
     name = name,
     nickname = nickname,
+    contact = contact,
     addresses = addresses,
     employment = employment,
     salary = salary,
@@ -91,6 +96,33 @@ class PersonCommandSpec : FunSpec({
     test("a subclass swap is one employment change") {
         Fixture().handle { copy(employment = Retired("1852")) } shouldContainExactly listOf(
             EmploymentChanged(ADA, PERSON.employment, Retired("1852")),
+        )
+    }
+
+    test("a value object one level down routes to its own property's event") {
+        Fixture().handle {
+            copy(contact = contact.copy(email = "ada@analyticalengine.co"))
+        } shouldContainExactly listOf(
+            EmailChanged(ADA, before = null, after = "ada@analyticalengine.co"),
+        )
+    }
+
+    test("a value object two levels down routes through a frame inside a frame") {
+        Fixture().handle {
+            copy(contact = contact.copy(phone = PHONE.copy(number = "7700900999")))
+        } shouldContainExactly listOf(
+            PhoneNumberChanged(ADA, before = "7700900123", after = "7700900999"),
+        )
+    }
+
+    test("two properties of one nested value object are two events, not one") {
+        val events = Fixture().handle {
+            copy(contact = Contact(email = "ada@analyticalengine.co", phone = PHONE.copy(country = "33")))
+        }
+
+        events shouldContainExactly listOf(
+            EmailChanged(ADA, before = null, after = "ada@analyticalengine.co"),
+            PhoneCountryCorrected(ADA, before = "44", after = "33"),
         )
     }
 

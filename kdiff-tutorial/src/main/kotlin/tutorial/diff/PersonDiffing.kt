@@ -4,10 +4,12 @@ import io.github.kdiff.runtime.Differ
 import io.github.kdiff.runtime.differ
 import io.github.kdiff.runtime.trackScope
 import tutorial.domain.Address
+import tutorial.domain.Contact
 import tutorial.domain.Employed
 import tutorial.domain.Employment
 import tutorial.domain.FullName
 import tutorial.domain.Person
+import tutorial.domain.Phone
 import tutorial.domain.Retired
 import tutorial.money.Money
 
@@ -45,9 +47,21 @@ object MoneyDiffer : Differ<Money> by differ({
     field(Money::currency)
 })
 
+val PhoneDiffer: Differ<Phone> = differ {
+    field(Phone::country)
+    field(Phone::number)
+}
+
+/** A value object holding another: `phone` delegates again, so a change is reported two levels down. */
+val ContactDiffer: Differ<Contact> = differ {
+    field(Contact::email)
+    nested(Contact::phone, PhoneDiffer)
+}
+
 val PersonDiffer: Differ<Person> = differ {
     nested(Person::name, FullNameDiffer)
     field(Person::nickname)
+    nested(Person::contact, ContactDiffer)
     keyedList(Person::addresses, Address::id, AddressDiffer)
     nested(Person::employment, EmploymentDiffer)
     nested(Person::salary, MoneyDiffer)

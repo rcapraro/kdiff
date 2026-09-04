@@ -29,6 +29,28 @@ data class NicknameChanged(
     val after: String?,
 ) : PersonEvent
 
+/**
+ * Three events for one value object two levels down, because the domain distinguishes them: reaching
+ * a new mobile number is not the same operation as correcting a dialling code.
+ */
+data class EmailChanged(
+    override val personId: PersonId,
+    val before: String?,
+    val after: String?,
+) : PersonEvent
+
+data class PhoneNumberChanged(
+    override val personId: PersonId,
+    val before: String,
+    val after: String,
+) : PersonEvent
+
+data class PhoneCountryCorrected(
+    override val personId: PersonId,
+    val before: String,
+    val after: String,
+) : PersonEvent
+
 data class AddressAdded(override val personId: PersonId, val address: Address) : PersonEvent
 
 data class AddressRemoved(override val personId: PersonId, val address: Address) : PersonEvent

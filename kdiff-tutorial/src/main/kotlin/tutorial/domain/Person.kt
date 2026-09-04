@@ -15,6 +15,7 @@ data class Person(
     val id: PersonId,
     val name: FullName,
     val nickname: String?,
+    val contact: Contact,
     val addresses: List<Address>,
     val employment: Employment,
     val salary: Money,

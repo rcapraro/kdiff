@@ -1,12 +1,15 @@
 package tutorial
 
 import io.github.kdiff.runtime.Diff
+import io.github.kdiff.runtime.route
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import tutorial.annotated.PersonDiffer as AnnotatedPersonDiffer
 import tutorial.diff.PersonDiffer
+import tutorial.domain.Contact
 import tutorial.domain.Person
+import tutorial.domain.Phone
 import tutorial.domain.Retired
 import tutorial.money.Money
 
@@ -21,6 +24,10 @@ private fun Person.annotated(): tutorial.annotated.Person = tutorial.annotated.P
     id = tutorial.annotated.PersonId(id.value),
     name = tutorial.annotated.FullName(name.given, name.family),
     nickname = nickname,
+    contact = tutorial.annotated.Contact(
+        email = contact.email,
+        phone = tutorial.annotated.Phone(contact.phone.country, contact.phone.number),
+    ),
     addresses = addresses.map {
         tutorial.annotated.Address(
             id = tutorial.annotated.AddressId(it.id.value),
@@ -60,6 +67,7 @@ class AnnotatedParitySpec : FunSpec({
         val desired = PERSON.copy(
             name = PERSON.name.copy(family = "Lovelace"),
             nickname = "Countess",
+            contact = PERSON.contact.copy(email = "ada@analyticalengine.co", phone = PHONE.copy(country = "33")),
             addresses = listOf(WORK, HOME.copy(city = "Ockham"), SUMMER),
             employment = Retired("1852"),
             salary = Money("1300", "GBP"),
@@ -70,6 +78,40 @@ class AnnotatedParitySpec : FunSpec({
         PERSON agreesWith desired
     }
 
+    test("both routes report a change two levels down at the same path") {
+        PERSON agreesWith PERSON.copy(contact = PERSON.contact.copy(phone = PHONE.copy(number = "7700900999")))
+    }
+
+    test("both routes dispatch a nested frame to the same handlers") {
+        val desired = PERSON.copy(
+            contact = PERSON.contact.copy(email = "ada@analyticalengine.co", phone = PHONE.copy(number = "7700900999")),
+        )
+
+        val byHand = buildList {
+            PersonDiffer.diff(PERSON, desired).route<Person> {
+                under(Person::contact) {
+                    on(Contact::email) { add("email") }
+                    under(Contact::phone) { on(Phone::number) { add("number") } }
+                }
+            }
+        }
+
+        val byAnnotation = buildList {
+            AnnotatedPersonDiffer.diff(PERSON.annotated(), desired.annotated())
+                .route<tutorial.annotated.Person> {
+                    under(tutorial.annotated.Person::contact) {
+                        on(tutorial.annotated.Contact::email) { add("email") }
+                        under(tutorial.annotated.Contact::phone) {
+                            on(tutorial.annotated.Phone::number) { add("number") }
+                        }
+                    }
+                }
+        }
+
+        byHand shouldContainExactly byAnnotation
+        byHand shouldContainExactly listOf("email", "number")
+    }
+
     test("both routes leave the key of a matched element uncompared") {
         PERSON agreesWith PERSON.copy(addresses = listOf(HOME.copy(city = "Ockham"), WORK))
     }
@@ -77,6 +119,7 @@ class AnnotatedParitySpec : FunSpec({
     test("both routes declare the same tracking scope") {
         val declared = AnnotatedPersonDiffer.trackScope.trackedFields?.map { it.name }
 
-        declared shouldContainExactly listOf("name", "nickname", "addresses", "employment", "salary", "tags")
+        declared shouldContainExactly
+            listOf("name", "nickname", "contact", "addresses", "employment", "salary", "tags")
     }
 })
