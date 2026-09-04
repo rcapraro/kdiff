@@ -175,8 +175,9 @@ val AddressDiffer = differ<Address> {
 
 ## Status
 
-`0.1.0`, unreleased. The API is documented and tested but has not been published, and no
-compatibility guarantee is offered yet.
+`0.1.0`, released — see the [changelog](CHANGELOG.md) and the
+[releases](https://github.com/rcapraro/kdiff/releases). The modules are published to GitHub Packages;
+no compatibility guarantee is offered before `1.0.0`.
 
 ## Contributing
 
