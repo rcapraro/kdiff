@@ -1,10 +1,18 @@
+<div align="center">
+
+<img src="assets/logo.svg" alt="" width="120" height="120">
+
 # kdiff
+
+**Annotation-driven structural diff, patch and change tracking for Kotlin**
 
 [![CI](https://github.com/rcapraro/kdiff/actions/workflows/ci.yml/badge.svg)](https://github.com/rcapraro/kdiff/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-blue.svg?logo=kotlin)](https://kotlinlang.org)
 
-Annotation-driven structural diff, patch and change tracking for Kotlin.
+</div>
+
+---
 
 Annotate a data class with `@Diffable` and a KSP processor generates, at compile time, a differ that
 compares two instances property by property, applies a diff back to rebuild an instance, and — with

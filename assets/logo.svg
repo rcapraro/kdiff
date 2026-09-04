@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="kdiff logo: a rounded square split corner to corner by a diagonal seam, with a struck-out line and a minus above it, and a plus with new lines below">
+  <title>kdiff</title>
+
+  <defs>
+    <!-- Purple through magenta to orange, in the visual language of the Kotlin ecosystem. -->
+    <linearGradient id="kdiffTile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7F52FF"/>
+      <stop offset="38%" stop-color="#C711E1"/>
+      <stop offset="100%" stop-color="#FF8A00"/>
+    </linearGradient>
+
+    <!-- Keeps every mark inside the rounded corners. -->
+    <clipPath id="kdiffClip">
+      <rect x="8" y="8" width="240" height="240" rx="52"/>
+    </clipPath>
+  </defs>
+
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#kdiffTile)"/>
+
+  <g clip-path="url(#kdiffClip)">
+    <!--
+      The seam, along x + y = 256: the same value in two versions, met corner to corner.
+      Everything below sits clear of it, on one side or the other.
+    -->
+    <path d="M8 248 L248 8" stroke="#FFFFFF" stroke-width="14" stroke-linecap="square"/>
+
+    <!-- Before: above the seam (x + y < 247). Lines shorten, and the last one is leaving. -->
+    <g fill="#FFFFFF">
+      <rect x="40" y="56" width="100" height="16" rx="8"/>
+      <rect x="40" y="86" width="76" height="16" rx="8"/>
+      <rect x="40" y="116" width="52" height="16" rx="8" opacity="0.55"/>
+      <rect x="40" y="146" width="34" height="13" rx="6.5"/>
+    </g>
+
+    <!-- After: below the seam (x + y > 265). The plus, then the lines that arrived. -->
+    <g fill="#FFFFFF">
+      <rect x="182" y="142" width="34" height="13" rx="6.5"/>
+      <rect x="192.5" y="131.5" width="13" height="34" rx="6.5"/>
+      <rect x="164" y="176" width="52" height="16" rx="8"/>
+      <rect x="140" y="206" width="76" height="16" rx="8"/>
+    </g>
+  </g>
+</svg>
