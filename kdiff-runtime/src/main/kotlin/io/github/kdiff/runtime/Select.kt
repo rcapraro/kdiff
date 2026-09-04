@@ -8,6 +8,7 @@ package io.github.kdiff.runtime
 internal class ResolvedScope(
     private val fields: List<TrackedField>?,
     private val depth: Int,
+    private val excluded: Set<String> = emptySet(),
 ) {
     fun selects(change: Change): Boolean {
         val segments = change.path.segments
@@ -15,6 +16,9 @@ internal class ResolvedScope(
         // A change at the tracked object itself — a sealed subclass swap — belongs to no property, so
         // no selector could name it and suppressing it would hide the object being replaced wholesale.
         if (segments.isEmpty()) return true
+
+        // Before any depth rule, so that a depth stated elsewhere cannot widen an exclusion back.
+        if (change.path.rootName() in excluded) return false
 
         val steps = segments.count { it is Segment.Field }
         if (fields == null) return within(steps, depth)
@@ -39,8 +43,12 @@ internal class ResolvedScope(
  * call site knows what will fire without consulting the type. A depth stated at the call site instead
  * overrides the declared depths, which is the one way to reach deeper than the type's author chose.
  */
+// The cast cannot be checked because both types are generic, and it is safe because a differ
+// implements Tracked for its own T or not at all. A failed test yields null, which is the
+// "declares no scope" path.
+@Suppress("UNCHECKED_CAST")
 internal fun <T> TrackScope<T>.resolveAgainst(differ: Differ<T>): ResolvedScope {
-    fields?.let { return ResolvedScope(it, depth ?: UNLIMITED_DEPTH) }
+    fields?.let { return ResolvedScope(it, depth ?: UNLIMITED_DEPTH, excluded) }
 
     val declared = (differ as? Tracked<T>)?.trackScope
     val declaredFields = declared?.fields
@@ -48,7 +56,11 @@ internal fun <T> TrackScope<T>.resolveAgainst(differ: Differ<T>): ResolvedScope 
         depth != null && declaredFields != null -> declaredFields.map { it.copy(depth = depth) }
         else -> declaredFields
     }
-    return ResolvedScope(effective, depth ?: declared?.depth ?: UNLIMITED_DEPTH)
+    return ResolvedScope(
+        effective,
+        depth ?: declared?.depth ?: UNLIMITED_DEPTH,
+        excluded + declared?.excluded.orEmpty(),
+    )
 }
 
 /**

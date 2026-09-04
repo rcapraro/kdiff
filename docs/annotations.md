@@ -56,6 +56,9 @@ no property.
 `depth` counts **property steps** from the tracked object — a collection index or key is not a step.
 The default, `UNLIMITED_DEPTH`, excludes nothing. Requires `@Diffable` on the same class.
 
+Deciding what to *do* about a reported change needs no annotation: route the diff and name each
+property by reference, see [diffing.md](diffing.md#deciding-what-a-change-means-route).
+
 ## `@TrackIgnore`
 
 Excludes the property from its class's declared scope. The property is **still compared** — a diff

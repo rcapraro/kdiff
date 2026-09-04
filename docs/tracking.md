@@ -24,6 +24,20 @@ over a callback needs no callback at all.
 `reset(baseline)` adopts a new baseline without comparing and without firing, for when you have
 adopted a new state by other means.
 
+### When you already hold both instances
+
+A tracker is for an instance that keeps evolving. A command handler holds two instances — what is
+stored, and what a caller is asking for — and wants the tracked view of the difference between them,
+not a baseline:
+
+<!-- from: kdiff-tutorial/src/main/kotlin/tutorial/app/UpdatePersonHandler.kt -->
+```kotlin
+        val events = eventsFor(current, desired, PersonDiffer.trackedDiff(current, desired, PersonScope))
+```
+
+`trackedDiff` reports exactly what a tracker carrying that scope would report, and remembers nothing.
+Passing no scope uses the one the type declared with `@Trackable`.
+
 > A `Tracker` is **not thread-safe** — `update` reads the baseline, compares, dispatches and writes
 > it back, and making that atomic would mean holding a lock across your callbacks. Confine one to a
 > thread. A `TrackScope` is immutable and can be shared freely.
@@ -113,9 +127,15 @@ A scope names properties by reference, so a typo does not compile:
 | `field(Order::total)` | that property itself, nothing nested |
 | `field(Order::billing, depth = 2)` | that property, to the stated depth |
 | `under(Order::billing)` | that property and its whole subtree |
+| `except(Order::lastTouched)` | every compared property *but* that one, however deep |
 | `depth = n` | applies when the scope names no property, and overrides a depth the type declared |
 
 Naming no property at all tracks every compared property.
+
+`except` is the one that avoids depth entirely: a scope naming only exclusions reaches as deep as the
+model goes, so nobody has to count property steps. It narrows — a prepared scope, a declared scope and
+a stated depth all keep their meaning, minus what is excluded — and a scope naming both tracked and
+excluded properties is rejected rather than resolved by a precedence rule.
 
 <!-- from: kdiff-sample/src/test/kotlin/demo/OrderTrackingSpec.kt -->
 ```kotlin

@@ -140,11 +140,33 @@ tracker.update(after)
 // city: Paris -> Nice
 ```
 
+Deciding what a change *means* is a routing, with every property named by reference:
+
+<!-- illustrative -->
+```kotlin
+diff.route<Address> {
+    on(Address::city) { relocate(after.city) }
+    otherwise { audit(Diff(it)) }
+}
+```
+
+Not your type to annotate? Describe it in ordinary Kotlin instead — same comparisons, same paths, and
+everything above works unchanged:
+
+<!-- illustrative -->
+```kotlin
+val AddressDiffer = differ<Address> {
+    field(Address::street)
+    field(Address::city)
+}
+```
+
 ## Documentation
 
 | Guide | Covers |
 |---|---|
-| [Diffing](docs/diffing.md) | `@Diffable`, the change vocabulary, paths, collections, maps, sealed types |
+| [**Tutorial**](docs/tutorial.md) | A worked DDD application: an annotation-free domain, commands diffed into domain events, and the same model annotated |
+| [Diffing](docs/diffing.md) | `@Diffable`, the change vocabulary, paths, routing, collections, maps, sealed types |
 | [Patching](docs/patching.md) | Applying a diff, failures, the round-trip property |
 | [Tracking](docs/tracking.md) | `@Trackable`, trackers, scopes, depth, callbacks |
 | [Hand-written differs and scopes](docs/hand-written.md) | `differ { }` and `trackScope { }` for types you cannot annotate |

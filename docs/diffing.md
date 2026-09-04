@@ -72,6 +72,49 @@ An empty path is the root object itself. A key segment retains the key **as its 
 text, so an entry added to a `Map<Int, V>` can be reconstructed from the `Int` — a rendered `"1"`
 could not be.
 
+### Deciding what a change means: `route`
+
+`FieldPath.rootName()` gives the property a path begins with, and `null` for the root path — a change
+there belongs to no property.
+
+Matching on that name works, but it is a `String`: a typo compiles and matches nothing. Route the diff
+instead, naming each property by reference:
+
+<!-- illustrative -->
+```kotlin
+diff.route<Order> {
+    on(Order::reference) { changes -> … }    // once, with every change under it
+    on(Order::status) { … }
+
+    otherwise { unhandled -> audit(Diff(unhandled)) }
+}
+```
+
+A handler runs **once** per routing, and only when its property has at least one change — a rename
+reported at both `name.given` and `name.family` is one rename, not two. What no handler names reaches
+`otherwise`, as does a change at the root of the routed type.
+
+A collection property is routed by element, and the element and its key arrive at their own types, so
+a caller never casts:
+
+<!-- illustrative -->
+```kotlin
+onEach(Order::addresses, Address::id) {
+    added { address -> … }                   // Address
+    removed { address -> … }
+    moved { id, from, to -> … }              // AddressId, and both positions
+    changed { id -> … }                      // once per element, however much of it changed
+}
+```
+
+`moved` and `changed` exist only for a collection whose elements carry a key, because without one
+there is nothing to identify the element by. Route an unkeyed collection and you get `added` and
+`removed`; anything else it reports — a change *inside* one of its elements — reaches `otherwise`
+rather than disappearing.
+
+Routing reads only the diff, so it works the same whether the differ came from `@Diffable` or from
+`differ { }`. See [the tutorial](tutorial.md) for the pattern worked through end to end.
+
 ## Values, enums and nullables
 
 Primitives, `String` and enums are compared by equality and report a single `ValueChanged`:

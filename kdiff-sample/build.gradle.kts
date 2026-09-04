@@ -26,4 +26,19 @@ tasks.test {
     inputs.dir(rootProject.file("docs"))
         .withPropertyName("docs")
         .withPathSensitivity(PathSensitivity.RELATIVE)
+
+    // The sources the samples are checked *against* must be inputs too. Without this, editing a file
+    // a sample cites leaves this task UP-TO-DATE and `check` passes on a stale result — which is the
+    // whole failure the harness exists to prevent.
+    //
+    // kdiff-sample's own sources are listed with the rest, and are not covered by the module's
+    // compile dependency: the samples are compared as *text*, so reflowing a cited line changes what
+    // the check reads while leaving the classfile — and so this task's classpath input — identical.
+    inputs.files(
+        rootProject.fileTree("kdiff-sample/src"),
+        rootProject.fileTree("kdiff-tutorial/src"),
+        rootProject.fileTree("kdiff-runtime/src/main"),
+    )
+        .withPropertyName("verifiedSources")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }
