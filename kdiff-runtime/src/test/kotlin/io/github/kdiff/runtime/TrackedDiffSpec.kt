@@ -1,6 +1,7 @@
 package io.github.kdiff.runtime
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 
@@ -36,6 +37,17 @@ class TrackedDiffSpec : FunSpec({
 
         OrderDiffer.trackedDiff(ORDER, next, scope).paths() shouldContainExactly
             listOf("reference", "status")
+    }
+
+    test("a frame reports nothing the enclosing scope filtered out") {
+        fun framed(scope: TrackScope<Order>) = buildList {
+            OrderDiffer.trackedDiff(ORDER, next, scope).route<Order> {
+                under(Order::billing) { on(Addr::city) { add("city") } }
+            }
+        }
+
+        framed(trackScope { except(Order::billing) }).shouldBeEmpty()
+        framed(trackScope { under(Order::billing) }) shouldContainExactly listOf("city")
     }
 
     test("nothing is retained: the same pair compares the same way twice") {

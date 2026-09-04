@@ -112,6 +112,43 @@ there is nothing to identify the element by. Route an unkeyed collection and you
 `removed`; anything else it reports — a change *inside* one of its elements — reaches `otherwise`
 rather than disappearing.
 
+A property whose own type is a value object is reached by **framing** it with `under`, and frames nest
+as deep as the model does:
+
+<!-- from: kdiff-tutorial/src/main/kotlin/tutorial/app/UpdatePersonHandler.kt -->
+```kotlin
+under(Person::contact) {
+    on(Contact::email) { add(EmailChanged(desired.id, current.contact.email, desired.contact.email)) }
+
+    under(Contact::phone) {
+        on(Phone::number) { add(PhoneNumberChanged(desired.id, wasPhone.number, nowPhone.number)) }
+        on(Phone::country) { add(PhoneCountryCorrected(desired.id, wasPhone.country, nowPhone.country)) }
+    }
+}
+```
+
+A frame's body **declares** its routes, and runs once when the routing is declared — unlike an `on`
+handler, which runs only when its property has a change. So a statement in a frame body that is not a
+route declaration runs whether or not anything changed, and a read that is only safe when the nested
+value changed (`current.fiscal!!.tin`, say) belongs inside a handler, not beside one.
+
+Inside a frame every route means what it means at the top level, one level down, and the changes a
+handler receives are rooted at the framed type — so `onEach` finds an element's key in there too.
+Dispatching through a frame is the same as comparing the nested value on its own and routing *that*
+diff; the two are interchangeable.
+
+Two edges are worth knowing. A change reported *at* the framed property rather than beneath it — what
+a nullable value object reports when it appears or disappears — has nothing left to descend into, and
+is treated as unhandled. And a change no handler in a frame names goes to that frame's own `otherwise`
+if it declares one, and otherwise back out to the enclosing routing, at the path it arrived with: so a
+single `otherwise` at the top sees everything unnamed at any depth.
+
+A frame dispatches at the property's *declared* type, which is what it can name. Frame a sealed
+property and you can name the properties the sealed type declares itself, but not a subclass's own —
+and the `TypeChanged` a subclass swap reports sits at the property, so it is unhandled and reaches the
+fallback. Framing a collection property names nothing at all, because a path beneath it begins with an
+element rather than a property; `onEach` is the call for that.
+
 Routing reads only the diff, so it works the same whether the differ came from `@Diffable` or from
 `differ { }`. See [the tutorial](tutorial.md) for the pattern worked through end to end.
 

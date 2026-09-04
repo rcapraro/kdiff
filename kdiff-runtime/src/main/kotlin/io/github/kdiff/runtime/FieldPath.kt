@@ -32,6 +32,16 @@ public value class FieldPath(public val segments: List<Segment>) {
     public fun prefixedWith(segment: Segment): FieldPath = FieldPath(listOf(segment) + segments)
 
     /**
+     * This path with its first segment dropped, the descent [prefixedWith] is the ascent of.
+     *
+     * Used when a routing frame re-roots the changes under a property so they can be dispatched
+     * against that property's own type. Internal because routing is its only caller: a differ lifts
+     * its nested results, which is a contract, while descending is how one routing reads another's
+     * paths.
+     */
+    internal fun withoutFirst(): FieldPath = FieldPath(segments.drop(1))
+
+    /**
      * The property this path begins with, or null when it begins with no property.
      *
      * Null for the root path, which belongs to no property — the type change a sealed type reports for

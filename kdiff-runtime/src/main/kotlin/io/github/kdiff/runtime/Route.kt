@@ -31,8 +31,9 @@ import kotlin.reflect.KProperty1
  * reported at both `name.given` and `name.family` is one rename, not two. Changes no handler names
  * reach [ChangeRoutes.otherwise], as does a change at the root of [T], which belongs to no property.
  */
-public fun <T> Diff.route(block: ChangeRoutes<T>.() -> Unit): Unit =
+public fun <T> Diff.route(block: ChangeRoutes<T>.() -> Unit) {
     ChangeRoutes<T>().apply(block).dispatch(changes)
+}
 
 public class ChangeRoutes<T> internal constructor() {
     private val handlers = linkedMapOf<String, (List<Change>) -> List<Change>>()
@@ -77,6 +78,56 @@ public class ChangeRoutes<T> internal constructor() {
         register(property.name) { routes.dispatch(it) }
     }
 
+    /**
+     * Routes the changes beneath [property] against that property's own type.
+     *
+     * A frame offers every route a routing offers, one level down, and frames nest as deep as the
+     * model does. Dispatching through a frame is the same as comparing the nested value itself and
+     * routing that diff: the same handlers run, receiving the same changes at paths rooted at the
+     * nested type.
+     *
+     * ```
+     * diff.route<Order> {
+     *     under(Order::billing) {
+     *         on(Addr::city) { .. }
+     *         under(Addr::country) { on(Country::code) { .. } }
+     *     }
+     * }
+     * ```
+     *
+     * A change reported *at* [property] rather than beneath it — the value change a nullable nested
+     * value reports when it appears or disappears — has nothing left to dispatch, and is treated as
+     * unhandled the way a change at the root of [T] already is.
+     *
+     * A change no handler in the frame names goes to the frame's own [otherwise] when it declares
+     * one, and is otherwise handed back to this routing at the path it arrived with. So one
+     * [otherwise] at the outermost routing sees every change unnamed at any depth.
+     *
+     * One call serves a nullable nested value and a non-null one, as in `DifferBuilder.nested`,
+     * because a property reference is covariant in the value it reads.
+     *
+     * [block] declares the frame's routes and runs **once, when the routing is declared** — unlike an
+     * [on] handler, which runs only when its property has a change. So a statement in a frame body
+     * that is not a route declaration runs whether or not anything changed, and a read that is only
+     * safe when the nested value changed belongs inside a handler rather than beside one.
+     */
+    public fun <V : Any> under(property: KProperty1<T, V?>, block: ChangeRoutes<V>.() -> Unit) {
+        val frame = ChangeRoutes<V>().apply(block)
+        register(property.name) { changes ->
+            val (beneath, atProperty) = changes.partition { it.path.segments.size > 1 }
+            val descended = beneath.map { it.withoutRoot() }
+
+            // dispatch returns an order-preserving subsequence of what it was given, and every
+            // re-rooted change is a fresh instance, so one walk in step restores each change to the
+            // instance it came from. An IndexOutOfBounds here would mean dispatch had started copying.
+            var cursor = 0
+            atProperty + frame.dispatch(descended).map { returned ->
+                while (descended[cursor] !== returned) cursor++
+                beneath[cursor++]
+            }
+        }
+    }
+
     /** Handles every change no other handler names, once, when there is at least one. */
     public fun otherwise(handler: (List<Change>) -> Unit) {
         require(fallback == null) { "a routing declares one otherwise handler; this is the second" }
@@ -91,13 +142,20 @@ public class ChangeRoutes<T> internal constructor() {
         handlers[property] = handler
     }
 
-    internal fun dispatch(changes: List<Change>) {
+    /** Dispatches [changes], returning those neither a handler nor [otherwise] accounted for. */
+    internal fun dispatch(changes: List<Change>): List<Change> {
         val unroutable = handlers.flatMap { (property, handler) ->
             changes.filter { it.path.rootName() == property }.takeIf { it.isNotEmpty() }?.let(handler).orEmpty()
         }
 
         val unhandled = changes.filter { it.path.rootName() !in handlers || it in unroutable }
-        if (unhandled.isNotEmpty()) fallback?.invoke(unhandled)
+        if (unhandled.isEmpty()) return emptyList()
+
+        // A fallback consumes what it is given; without one the caller decides, which is how a frame
+        // hands its leftovers back to the routing that framed it.
+        val fallback = fallback ?: return unhandled
+        fallback(unhandled)
+        return emptyList()
     }
 }
 
@@ -189,6 +247,21 @@ public class KeyedElementRoutes<E : Any, K : Any> @PublishedApi internal constru
 
     private fun keyOf(change: Change): K? =
         key.safeCast((change.path.segments.getOrNull(1) as? Segment.Key)?.value)
+}
+
+/**
+ * This change with the first segment of its path dropped, so a routing frame can dispatch it against
+ * the type it reached.
+ *
+ * Exhaustive by construction, like `Change.sides()`: a sixth [Change] variant fails to compile here
+ * rather than losing its location in silence.
+ */
+internal fun Change.withoutRoot(): Change = when (this) {
+    is ValueChanged -> copy(path = path.withoutFirst())
+    is Added -> copy(path = path.withoutFirst())
+    is Removed -> copy(path = path.withoutFirst())
+    is TypeChanged -> copy(path = path.withoutFirst())
+    is Moved -> copy(path = path.withoutFirst())
 }
 
 /** `KClass.safeCast` without `kotlin-reflect`: the cast `isInstance` has already made safe. */

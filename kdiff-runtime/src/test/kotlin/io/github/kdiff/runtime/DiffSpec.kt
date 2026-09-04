@@ -93,4 +93,54 @@ class DiffSpec : FunSpec({
         prefixed.before shouldBe "old"
         prefixed.after shouldBe "new"
     }
+
+    test("dropping the first segment leaves the rest of the path") {
+        FieldPath(listOf(Segment.Field("address"), Segment.Field("street")))
+            .withoutFirst() shouldBe FieldPath.of("street")
+    }
+
+    test("dropping the first segment of a single-segment path leaves the root path") {
+        FieldPath.of("street").withoutFirst() shouldBe FieldPath.ROOT
+    }
+
+    test("dropping the first segment of the root path leaves the root path") {
+        FieldPath.ROOT.withoutFirst() shouldBe FieldPath.ROOT
+    }
+
+    test("dropping a segment is the inverse of prefixing one") {
+        val path = FieldPath(listOf(Segment.Field("addresses"), Segment.Key("id", "A2"), Segment.Field("street")))
+
+        path.prefixedWith(Segment.Field("company")).withoutFirst() shouldBe path
+    }
+
+    test("every change subtype descends when its root is dropped") {
+        val at = FieldPath(listOf(Segment.Field("address"), Segment.Field("street")))
+        val changes = listOf(
+            ValueChanged(at, "x", "y"),
+            Added(at, "x"),
+            Removed(at, "x"),
+            TypeChanged(at, "Card", "Transfer", "card", "transfer"),
+            Moved(at, 0, 1),
+        )
+
+        val descended = changes.map { it.withoutRoot() }
+
+        descended.map { it.path.toString() } shouldContainExactly List(5) { "street" }
+    }
+
+    test("descending keeps each change's own type and data") {
+        val at = FieldPath(listOf(Segment.Field("address"), Segment.Field("street")))
+
+        val value = ValueChanged(at, "old", "new").withoutRoot()
+        val added = Added(at, "x").withoutRoot()
+        val removed = Removed(at, "x").withoutRoot()
+        val typed = TypeChanged(at, "Card", "Transfer", "card", "transfer").withoutRoot()
+        val moved = Moved(at, 0, 1).withoutRoot()
+
+        value shouldBe ValueChanged(FieldPath.of("street"), "old", "new")
+        added shouldBe Added(FieldPath.of("street"), "x")
+        removed shouldBe Removed(FieldPath.of("street"), "x")
+        typed shouldBe TypeChanged(FieldPath.of("street"), "Card", "Transfer", "card", "transfer")
+        moved shouldBe Moved(FieldPath.of("street"), 0, 1)
+    }
 })
