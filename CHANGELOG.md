@@ -11,6 +11,22 @@ entry written for someone deciding whether to upgrade.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-04
+
+### Added
+
+- `under(property) { }` inside `Diff.route` routes the changes beneath one property against that
+  property's own type, so a model whose value objects nest more than one level deep can be routed at
+  the granularity its domain speaks in. Frames nest as deep as the model does, and every route works
+  inside one — `on`, `onEach` in both forms, and `otherwise`. Purely additive: a routing that declares
+  no frame behaves exactly as before.
+
+  Two rules worth reading before you rely on them. A change no handler in a frame names goes to that
+  frame's `otherwise` if it declares one, and otherwise back out to the enclosing routing at the path
+  it arrived with — so one `otherwise` at the top still sees everything unnamed at any depth. And a
+  change reported *at* a framed property rather than beneath it, which is what a nullable value object
+  reports when it appears or disappears, is treated as unhandled rather than delivered to a handler.
+
 ## [0.1.0] - 2026-09-04
 
 First release.
@@ -38,5 +54,6 @@ First release.
 
 - JDK 17 or later; built against a JVM 21 toolchain, Kotlin 2.4.10 and KSP 2.3.11.
 
-[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/rcapraro/kdiff/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rcapraro/kdiff/releases/tag/v0.1.0
