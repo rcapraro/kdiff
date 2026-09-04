@@ -32,6 +32,19 @@ public value class FieldPath(public val segments: List<Segment>) {
     public fun prefixedWith(segment: Segment): FieldPath = FieldPath(listOf(segment) + segments)
 
     /**
+     * The property this path begins with, or null when it begins with no property.
+     *
+     * Null for the root path, which belongs to no property — the type change a sealed type reports for
+     * a subclass swap sits there. Null too if the first segment identifies a collection element rather
+     * than a property, which no differ produces at the top of a path but is the honest answer if one
+     * ever does.
+     *
+     * Matching on this name is workable but fragile: a typo is a valid `String`. Prefer [Diff.route],
+     * which names each property by reference and dispatches on this for you.
+     */
+    public fun rootName(): String? = (segments.firstOrNull() as? Segment.Field)?.name
+
+    /**
      * The path rendered so a reader can follow it back to the source: properties separated by
      * dots, an index in square brackets, a key as its property and value in square brackets.
      */

@@ -31,19 +31,24 @@ internal sealed interface Comparison {
     ) : Comparison
 
     data class KeyedList(
-        val element: ClassName,
         val differ: ClassName,
         val keyProperty: String,
         override val sources: List<KSFile>,
     ) : Comparison
 
-    data class PositionalList(val differ: ClassName?, override val sources: List<KSFile>) : Comparison
+    data class PositionalList(
+        val differ: ClassName?,
+        override val sources: List<KSFile>,
+    ) : Comparison
 
     data object AsSet : Comparison {
         override val sources: List<KSFile> = emptyList()
     }
 
-    data class AsMap(val valueDiffer: ClassName?, override val sources: List<KSFile>) : Comparison
+    data class AsMap(
+        val valueDiffer: ClassName?,
+        override val sources: List<KSFile>,
+    ) : Comparison
 }
 
 /** One property of a declared tracking scope, mirroring the runtime's `TrackedField`. */

@@ -91,6 +91,22 @@ public fun <T> tracker(
     block: TrackerBuilder<T>.() -> Unit = {},
 ): Tracker<T> = TrackerBuilder<T>().apply { scope(scope) }.apply(block).build(differ, initial)
 
+/**
+ * Compares [before] against [after] and reports only what [scope] selects, holding no baseline.
+ *
+ * The tracked view of one transition, for a caller that already holds both instances — a command
+ * handler comparing current state against the state a command asks for. The result is what a
+ * [Tracker] carrying the same scope would report for the same pair; a tracker is the right tool for
+ * an instance that keeps evolving, and this one for a pair that does not.
+ *
+ * Passing no scope uses the scope the differ's type declared with `@Trackable`, and reports every
+ * compared property when it declared none.
+ */
+public fun <T> Differ<T>.trackedDiff(before: T, after: T, scope: TrackScope<T>? = null): Diff {
+    val resolved = (scope ?: TrackScope<T>(fields = null, depth = null)).resolveAgainst(this)
+    return Diff(diff(before, after).changes.filter(resolved::selects))
+}
+
 public class TrackerBuilder<T> internal constructor() {
     private val selectors = TrackScopeBuilder<T>()
     private var prepared: TrackScope<T>? = null
@@ -112,6 +128,9 @@ public class TrackerBuilder<T> internal constructor() {
 
     /** Tracks [property] and everything nested beneath it, however deep. */
     public fun under(property: KProperty1<T, *>): Unit = selectors.under(property)
+
+    /** Tracks every compared property except [property]; see [TrackScopeBuilder.except]. */
+    public fun except(property: KProperty1<T, *>): Unit = selectors.except(property)
 
     /**
      * Tracks what [scope] names, unless a property is named here as well — naming one is the more
@@ -137,10 +156,10 @@ public class TrackerBuilder<T> internal constructor() {
 
         // A stated depth must narrow or widen the prepared scope, never discard what it names:
         // dropping its properties would fall back to tracking everything, silently reporting far
-        // more than the caller asked for.
+        // more than the caller asked for. An exclusion named here narrows it the same way.
         val scope = when {
             named.fields != null -> named
-            given != null -> given.atDepth(named.depth)
+            given != null -> given.atDepth(named.depth).without(named.excluded)
             else -> named
         }
 

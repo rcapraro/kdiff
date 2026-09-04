@@ -1,5 +1,6 @@
 package io.github.kdiff.runtime
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -87,6 +88,66 @@ class TrackScopeCompositionSpec : FunSpec({
             }.update(next)
 
             diff.paths() shouldContainExactly listOf("billing.city", "billing.country.code")
+        }
+    }
+
+    context("a scope naming what it excludes") {
+        test("everything else is tracked") {
+            val scope = trackScope<Order> { except(Order::status) }
+
+            tracker(OrderDiffer, ORDER, scope).update(next).paths() shouldContainExactly
+                listOf("reference", "billing.city", "billing.country.code")
+        }
+
+        test("nothing beneath an excluded property is tracked either") {
+            val scope = trackScope<Order> { except(Order::billing) }
+
+            tracker(OrderDiffer, ORDER, scope).update(next).paths() shouldContainExactly
+                listOf("reference", "status")
+        }
+
+        test("a depth stated alongside cannot widen an exclusion back") {
+            val scope = trackScope<Order> { except(Order::billing) }
+
+            tracker(OrderDiffer, ORDER, scope) { depth = UNLIMITED_DEPTH }.update(next).paths() shouldContainExactly
+                listOf("reference", "status")
+        }
+
+        test("an exclusion at the call site narrows a prepared scope rather than replacing it") {
+            val prepared = trackScope<Order> { except(Order::status) }
+
+            val diff = tracker(OrderDiffer, ORDER, prepared) { except(Order::billing) }.update(next)
+
+            diff.paths() shouldContainExactly listOf("reference")
+        }
+
+        test("an exclusion narrows the scope the differ's type declares") {
+            val declaring = TrackedOrderDiffer(
+                trackScopeOf(TrackedField("reference", 1), TrackedField("status", 1)),
+            )
+
+            val diff = tracker(declaring, ORDER) { except(Order::status) }.update(next)
+
+            diff.paths() shouldContainExactly listOf("reference")
+        }
+
+        test("excluding a property that is never compared excludes nothing") {
+            val scope = trackScope<Order> { except(Order::labels) }
+
+            tracker(OrderDiffer, ORDER, scope).update(next).paths() shouldContainExactly
+                listOf("reference", "status", "billing.city", "billing.country.code")
+        }
+
+        test("naming a tracked property and an exclusion in one scope is rejected") {
+            val failure = shouldThrow<IllegalArgumentException> {
+                trackScope<Order> {
+                    field(Order::reference)
+                    except(Order::status)
+                }
+            }
+
+            failure.message shouldBe
+                "a scope names the properties it tracks or the properties it excludes, never both"
         }
     }
 

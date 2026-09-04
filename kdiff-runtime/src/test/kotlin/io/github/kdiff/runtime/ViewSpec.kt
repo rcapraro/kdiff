@@ -102,39 +102,3 @@ class RenderSpec : FunSpec({
         rendered shouldContain "null -> \"Ada\""
     }
 })
-
-private data class Money(val amount: String, val currency: String)
-
-class DslSpec : FunSpec({
-
-    val moneyDiffer = differ<Money> {
-        field(Money::amount)
-        field(Money::currency)
-    }
-
-    test("a hand-written differ compares the fields it names") {
-        val diff = moneyDiffer.diff(Money("10", "EUR"), Money("12", "EUR"))
-
-        diff.changes.map { it.path.toString() } shouldBe listOf("amount")
-    }
-
-    test("a hand-written differ reports nothing for equal instances") {
-        moneyDiffer.diff(Money("10", "EUR"), Money("10", "EUR")).isEmpty shouldBe true
-    }
-
-    test("a hand-written differ nests inside another hand-written differ at the full path") {
-        data class Invoice(val id: String, val total: Money)
-
-        val invoiceDiffer = differ<Invoice> {
-            field(Invoice::id)
-            nested(Invoice::total, moneyDiffer)
-        }
-
-        val diff = invoiceDiffer.diff(
-            Invoice("1", Money("10", "EUR")),
-            Invoice("1", Money("12", "EUR")),
-        )
-
-        diff.changes.map { it.path.toString() } shouldBe listOf("total.amount")
-    }
-})

@@ -286,7 +286,8 @@ public class DiffProcessor(
             .add("if (swap != null) return %T(swap.after as %T)\n\n", PATCH_RESULT, target)
             .add("return when (before) {\n").indent()
 
-        getSealedSubclasses().forEach { subclass ->
+        val subclasses = getSealedSubclasses().toList()
+        subclasses.forEach { subclass ->
             val name = subclass.toClassName()
             body.add("is %T -> {\n", name).indent()
                 .add("val result = %T.apply(before, changes)\n", differName(name))
@@ -294,7 +295,13 @@ public class DiffProcessor(
                 .unindent().add("}\n")
         }
 
-        return body.add("else -> %T(before)\n", PATCH_RESULT).unindent().add("}\n").build()
+        // A `when` over an enumerated sealed hierarchy is already exhaustive, and a trailing `else`
+        // draws a warning in every consumer that annotates a sealed type. It is still needed for a
+        // sealed type declaring no subclasses at all — which is accepted, and for which a branchless
+        // `when` would not compile.
+        if (subclasses.isEmpty()) body.add("else -> %T(before)\n", PATCH_RESULT)
+
+        return body.unindent().add("}\n").build()
     }
 
     private fun emitPatch(
@@ -348,7 +355,7 @@ public class DiffProcessor(
                 )
             }
 
-            Comparison.AsSet ->
+            is Comparison.AsSet ->
                 CodeBlock.of("val %N = %M(before.%N, %L)\n", patched, PATCH_SET, name, changes)
 
             is Comparison.AsMap -> if (comparison.valueDiffer == null) {
@@ -500,7 +507,6 @@ public class DiffProcessor(
                 Comparison.PositionalList(differ, declaration.file())
             } else {
                 Comparison.KeyedList(
-                    element = declaration.toClassName(),
                     differ = differ,
                     keyProperty = key.simpleName.asString(),
                     sources = declaration.file(),
@@ -617,7 +623,7 @@ public class DiffProcessor(
                 )
             }
 
-            Comparison.AsSet ->
+            is Comparison.AsSet ->
                 CodeBlock.of("%M(%S, before.%N, after.%N)\n", COMPARE_SET, name, name, name)
 
             is Comparison.AsMap -> if (comparison.valueDiffer == null) {

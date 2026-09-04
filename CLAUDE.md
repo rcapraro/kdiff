@@ -32,6 +32,8 @@ generated code, and generated Kotlin a human would be happy to read.
 - `kdiff-processor` — `SymbolProcessor` + KotlinPoet. Compile-time only for consumers, applied
   through the `ksp` configuration. Never a runtime dependency.
 - `kdiff-sample` — consumes the processor end to end; doubles as the integration test.
+- `kdiff-tutorial` — the worked example behind `docs/tutorial.md`: an annotation-free domain described
+  with `differ { }`, plus an annotated mirror that `AnnotatedParitySpec` holds to the same output.
 
 `UNLIMITED_DEPTH = -1` is deliberately declared **twice**, in `kdiff-annotations` and in
 `kdiff-runtime`, with a comment in each saying why: an annotation default must be a compile-time
@@ -72,6 +74,12 @@ be reconstructed. Nested differs report paths relative to themselves and the cal
 Runtime helpers (`compareValue`, `patchNested`, `trackScopeOf`, …) live in `kdiff-runtime` rather than
 being generated, so an algorithm fix ships as a dependency bump instead of a recompile of every
 consumer. **Keep new logic in the runtime; have the processor emit calls to it, not the logic itself.**
+
+Deciding what a change *means* is `Diff.route<T> { }` (`Route.kt`), which names properties by
+`KProperty1` and reads only the diff — so it serves the annotated and hand-written routes identically.
+It replaced generated per-type field tokens, which only `@Trackable` could reach; the trade-off, taken
+deliberately, is that dispatch is no longer an exhaustive `when`, and a new property reaches
+`otherwise` instead of breaking the build.
 
 ## Tracking: depth counts property steps only
 
