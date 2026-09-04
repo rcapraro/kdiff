@@ -111,6 +111,27 @@ object; `TrackScopeCompositionSpec` exists to catch its return.
   `runDiffer`, `diffFixture`, `roundTripFixture`, `trackedFields`, `trackFixture`). Snapshot generated
   text only where the shape of the generated API is itself the contract.
 
+## Commits and releases
+
+Every commit message follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+`type(scope)!: subject`, imperative mood, lowercase subject, no trailing period. History is rewritten
+rather than left non-compliant, so a new commit that does not parse is the only kind that stands out.
+
+Types in use: `feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `chore`. Scope is the
+module without its prefix (`runtime`, `processor`, `annotations`, `sample`, `tutorial`) or the area
+touched (`readme`, `changelog`, `openspec`, `claude`); omit it when a change genuinely spans the repo.
+Merge commits keep GitHub's default subject.
+
+**A breaking change carries both signals**: `!` before the colon *and* a `BREAKING CHANGE:` footer
+saying what was removed and what replaces it. The generated API is a published surface — removing a
+generated type is breaking even when every test still passes.
+
+Releasing is a tag. `vX.Y.Z` must match `version` in the root `build.gradle.kts`, and pushing it runs
+`.github/workflows/publish.yml`: check, publish the three published modules to GitHub Packages, then
+create or update the GitHub release with that version's `CHANGELOG.md` section as its notes. So the
+changelog entry is written *before* the tag, and it is the only place a version is described — release
+notes are generated from it, never typed separately.
+
 ## OpenSpec workflow
 
 This repo is spec-driven. `openspec/config.yaml` is the authoritative source for the tech stack,
