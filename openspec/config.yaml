@@ -1,0 +1,97 @@
+schema: spec-driven
+
+context: |
+  ## Project
+  kdiff is an annotation-driven structural diff library for Kotlin. Annotating a data class with
+  `@Diffable` makes a KSP (Kotlin Symbol Processing) processor generate, at compile time, a
+  `<Type>Diff` file containing a diff function and a typed change model that compares two instances
+  field by field. Goals: no reflection, no runtime cost beyond the generated code, generated Kotlin
+  that a human would be happy to read.
+
+  ## Modules (Gradle multi-project, all Kotlin/JVM)
+  - `kdiff-annotations`: annotations only (`@Diffable` and its parameters). No dependencies.
+  - `kdiff-runtime`: shared result types (`Diff`, `Change`, `FieldPath`, ...) and the interfaces the
+    generated code targets. Depends only on the Kotlin stdlib. Never depends on the processor.
+  - `kdiff-processor`: `SymbolProcessorProvider` + `SymbolProcessor`, KotlinPoet code generation.
+    Depends on `symbol-processing-api`, `kotlinpoet-ksp`, `kdiff-annotations`. Compile-time only for
+    consumers (applied through the `ksp` configuration), never a runtime dependency.
+  - `kdiff-sample`: applies the `com.google.devtools.ksp` Gradle plugin and consumes the processor
+    end to end; doubles as the integration test.
+  Module names describe the intended layout; nothing exists yet, so the first change may refine them.
+
+  ## Tech stack (current stable as of 2026-09-03)
+  - Kotlin 2.4.10, Kotlin/JVM only, JVM toolchain 21, `kotlin { explicitApi() }` on published modules.
+  - KSP 2.3.11 (KSP2; `ksp.useKSP2` is deprecated because KSP2 is the default). Plugin id
+    `com.google.devtools.ksp`, API artifact `com.google.devtools.ksp:symbol-processing-api`.
+  - KotlinPoet 2.3.0 with `com.squareup:kotlinpoet-ksp` for code generation.
+  - Gradle 9.7.1, Kotlin DSL (`*.gradle.kts`), version catalog in `gradle/libs.versions.toml`,
+    `dependencyResolutionManagement` in `settings.gradle.kts`. Add convention plugins under
+    `build-logic/` only once build logic repeats across modules.
+  - Kotest 6.2.4: `io.kotest:kotest-runner-junit5` and `io.kotest:kotest-assertions-core`.
+  - kotlin-compile-testing fork `dev.zacsweers.kctfork:ksp` 0.13.0 for processor tests (built
+    against Kotlin 2.4.0 / KSP 2.3.9).
+  Do not bump these versions inside a feature change; version upgrades are their own change.
+
+  ## KSP conventions
+  - Target KSP2 only. Do not add KSP1 compatibility paths.
+  - Provider registered in
+    `META-INF/services/com.google.devtools.ksp.processing.SymbolProcessorProvider`.
+  - The processor keeps no state across rounds except deferred symbols: return symbols that cannot
+    be validated yet from `process()` so KSP retries them in the next round; do cleanup in `finish()`.
+  - User-facing problems are diagnostics, not exceptions: `KSPLogger.error(message, symbol)` with
+    the offending symbol so the IDE and Gradle point at the right line. Unsupported shapes are
+    compile errors, never silent fallbacks.
+  - Every generated file declares `Dependencies(aggregating = false, originatingFile)` so
+    incremental processing works. Use `aggregating = true` only for a file that genuinely depends
+    on the whole module, and say why in the design.
+  - Generate through `CodeGenerator` (KotlinPoet `FileSpec.writeTo(codeGenerator, dependencies)`).
+    Generated file lives in the annotated class's package and is named `<Type>Diff.kt`.
+  - `KSTypeReference.resolve()` is expensive: resolve each type once and pass the `KSType` around.
+  - Handle nullability, generics, nested `@Diffable` types, collections, maps and enums explicitly;
+    each is a documented, tested case.
+
+  ## Testing conventions
+  - Kotest everywhere. `FunSpec` or `StringSpec`, one spec class per behaviour, test names read as
+    sentences.
+  - Processor tests compile Kotlin snippets in-test with kctfork and assert on `exitCode`,
+    diagnostics (message and location), and the generated sources. Prefer compiling and invoking the
+    generated code over asserting on its text; snapshot the text only when the shape of the generated
+    API is itself the contract.
+  - `kdiff-runtime` is unit-tested directly.
+  - `./gradlew check` is the definition of done for every task.
+
+  ## Code style
+  - Idiomatic Kotlin: immutability by default, `sealed` hierarchies for change models, `value`
+    classes for identifiers such as field paths, small functions, early returns.
+  - No comments unless they explain a non-obvious why (constraint, trade-off, workaround, KSP quirk).
+  - Public API of published modules is explicit and documented with KDoc.
+
+rules:
+  proposal:
+    - Name the affected module(s) (annotations, runtime, processor, sample).
+    - State whether the generated API surface changes; a change consumers must recompile or adapt to is BREAKING.
+    - State whether annotation semantics change, and how existing annotated code behaves afterwards.
+  specs:
+    - Express requirements as annotated input -> generated API, diff result, or compile-time diagnostic.
+    - Never mention KotlinPoet, KSP APIs, or other processor internals; specs describe observable behaviour only.
+    - Every new annotation parameter gets at least one error-condition scenario (invalid target, invalid combination).
+  design:
+    - "Cover type resolution: nullability, generics, collections, maps, enums, nested @Diffable types."
+    - "Cover incremental processing: which files each generated file depends on and whether it is aggregating."
+    - Show a sample of the generated file for the change so the API shape is reviewable before implementation.
+    - State what lives in kdiff-runtime versus what is generated, and why.
+  tasks:
+    - Every processor change ships with a kctfork compile-testing spec; every runtime change with a Kotest unit spec.
+    - When generated output changes, include a task to update kdiff-sample and re-run its tests.
+    - The final task is always running `./gradlew check`.
+
+operations:
+  apply:
+    guidance:
+      - Run `./gradlew check` (or the affected module's `:test`) before marking a task done; report failures verbatim.
+      - When generated output changes, update kdiff-sample and re-run its tests in the same task.
+      - Do not bump Kotlin, KSP, KotlinPoet, Gradle or Kotest versions inside a feature change.
+  archive:
+    guidance:
+      - Confirm `./gradlew check` is green and kdiff-sample compiles against the final generated API before archiving.
+      - Summarise which modules changed and whether the generated API surface changed.

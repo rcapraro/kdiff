@@ -1,0 +1,24 @@
+# Gradle
+build/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Kotlin
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# macOS
+.DS_Store
+
+# Local Claude Code overrides; the shared commands and skills are committed.
+.claude/settings.local.json
+
+# Credentials — never commit a GitHub Packages token.
+gradle.properties.local
+local.properties
