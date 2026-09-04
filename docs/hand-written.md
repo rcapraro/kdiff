@@ -27,11 +27,61 @@ Name the properties to compare, by reference:
 object WeightDiffer : Differ<Weight> by differ({ field(Weight::grams) })
 ```
 
-`field(property)` compares by value. `nested(property, differ)` delegates to another differ and lifts
-its paths under the property's name, so a hand-written differ can descend into another type.
-
 Property references are stdlib — reading `name` and calling `get` needs no `kotlin-reflect`, so this
 adds no dependency.
+
+### The whole vocabulary
+
+One call per comparison shape, and between them they cover everything `@Diffable` can declare:
+
+| Call | Compares | Annotated equivalent |
+|---|---|---|
+| `field(p)` | by value | a scalar or enum property |
+| `nested(p, differ)` | by delegating, nullable or not | a `@Diffable` property type |
+| `list(p, differ?)` | index by index; never a move | a `List` whose element declares no key |
+| `keyedList(p, key, differ)` | by element identity; a reorder is a move | a `List` whose element declares `@DiffKey` |
+| `set(p)` | as unordered membership | a `Set` |
+| `map(p, values?)` | by entry key | a `Map` |
+| `subtype(Type::class, differ)` | by dispatching on the runtime subclass | `@Diffable` on a sealed type |
+| *naming it nowhere* | not at all | `@DiffIgnore` |
+
+<!-- from: kdiff-tutorial/src/main/kotlin/tutorial/diff/PersonDiffing.kt -->
+```kotlin
+val PersonDiffer: Differ<Person> = differ {
+    nested(Person::name, FullNameDiffer)
+    field(Person::nickname)
+    keyedList(Person::addresses, Address::id, AddressDiffer)
+    nested(Person::employment, EmploymentDiffer)
+    nested(Person::salary, MoneyDiffer)
+    set(Person::tags)
+    field(Person::lastSeenAt)
+}
+```
+
+`keyedList` takes the key as a property reference and reads both halves the comparison needs from it —
+the name a path segment carries, and the value elements are matched by — so the two cannot get out of
+step.
+
+`subtype` is the sealed case. Two instances of one declared subtype are compared by that subtype's
+differ; anything else reports a type change at the root and then compares whatever `field` calls sit
+alongside, because a parent's own properties are the only ones comparable across a swap:
+
+<!-- from: kdiff-tutorial/src/main/kotlin/tutorial/diff/PersonDiffing.kt -->
+```kotlin
+val EmploymentDiffer: Differ<Employment> = differ {
+    subtype(Employed::class, differ { field(Employed::employer); field(Employed::since) })
+    subtype(Retired::class, differ { field(Retired::since) })
+}
+```
+
+### What the builder cannot tell you
+
+The processor rejects a model it cannot compare; the builder is ordinary Kotlin and cannot. Naming a
+`List<Address>` with `field` compares the whole list as one value, and naming the wrong key property
+matches elements by the wrong identity — both compile, and both are wrong at runtime.
+
+The answer is a parity test: describe the model by hand, describe it once with annotations, and hold
+the two to the same output. `kdiff-tutorial` does exactly that in `AnnotatedParitySpec`.
 
 Hold the result in an `object` so a property can point at it with `@DiffWith`:
 
@@ -105,6 +155,18 @@ val tracker = tracker(MoneyDiffer, Money("10", "EUR"), scope) {
 A hand-written scope behaves identically to one a `@Trackable` class declares — the tracker cannot
 tell them apart, because there is nothing on the type to tell it with.
 
+`except(property)` says the same thing the other way round, and is usually what a domain model wants:
+track everything, as deep as the model goes, bar the bookkeeping.
+
+<!-- from: kdiff-tutorial/src/main/kotlin/tutorial/diff/PersonDiffing.kt -->
+```kotlin
+val PersonScope = trackScope<Person> { except(Person::lastSeenAt) }
+```
+
+A scope names what it tracks or what it excludes, never both — the two say opposite things about every
+property named in neither, and guessing which one wins is how a tracker ends up reporting more than
+its caller asked for.
+
 So a type carrying no kdiff annotation at all can be both compared and tracked:
 
 <!-- from: kdiff-sample/src/test/kotlin/demo/OrderTrackingSpec.kt -->
@@ -141,8 +203,8 @@ trackable**.
 
 ## When the DSL is not enough
 
-`differ { }` handles values and nested delegation. For a hand-written differ over collections, use
-the runtime's compare helpers directly — `compareValue`, `compareNested`, `compareNestedNullable`,
-`compareKeyedList`, `comparePositionalList`, `compareSet`, `compareMap` — in a plain
-`Differ<T>` implementation. They are the same helpers the generated code calls, which is why a
-hand-written differ built that way is indistinguishable from a generated one.
+Every builder call is a call to a runtime compare helper — `compareValue`, `compareNested`,
+`compareNestedNullable`, `compareKeyedList`, `comparePositionalList`, `compareSet`, `compareMap` — and
+those are the same helpers the generated code calls. For a comparison the builder cannot express, use
+them directly in a plain `Differ<T>` implementation: the result is still indistinguishable from a
+generated differ, because it is made of the same parts.

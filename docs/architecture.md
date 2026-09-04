@@ -108,4 +108,6 @@ dependency graph narrow.
 that are easy to get wrong. This page explains the reasoning behind them; that one states the rules.
 Where a fact appears in both, the explanation belongs here.
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for the workflow.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for the workflow, and [the tutorial](tutorial.md) for a
+worked application that puts all three capabilities together — including the module that doubles as
+the library's ergonomics test.
