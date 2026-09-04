@@ -1,0 +1,70 @@
+name: Publish
+
+# A tag is the release trigger: pushing `vX.Y.Z` publishes the modules and writes the release notes
+# from that version's CHANGELOG.md section. workflow_dispatch is the manual path for a tag whose run
+# failed halfway, and republishes the same version rather than inventing a new one.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to publish (e.g. v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The tag names the version; the build declares it. Publishing artifacts whose version does not
+      # match the tag that triggered it is the one mistake that cannot be taken back, so it fails here.
+      - name: Check the tag matches the declared version
+        id: version
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          version="${tag#v}"
+          declared=$(grep -m1 '^    version = ' build.gradle.kts | cut -d'"' -f2)
+          if [ "$version" != "$declared" ]; then
+            echo "tag $tag declares version $version, but the build declares $declared" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - run: ./gradlew check --no-daemon
+
+      - name: Publish to GitHub Packages
+        run: ./gradlew publish --no-daemon
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build the release notes from the changelog
+        run: ./.github/scripts/changelog-section.sh "${{ steps.version.outputs.version }}" > notes.md
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "kdiff $VERSION" --notes-file notes.md --latest
+          else
+            gh release create "$TAG" --title "kdiff $VERSION" --notes-file notes.md --latest
+          fi
