@@ -208,3 +208,12 @@ Every builder call is a call to a runtime compare helper — `compareValue`, `co
 those are the same helpers the generated code calls. For a comparison the builder cannot express, use
 them directly in a plain `Differ<T>` implementation: the result is still indistinguishable from a
 generated differ, because it is made of the same parts.
+
+## Where to go next
+
+- [Tutorial](tutorial.md) — a whole domain described this way, with an annotated mirror held to the
+  same output
+- [Diffing](diffing.md) — the comparison rules each builder call implements
+- [Patching](patching.md) — what makes a property unpatchable, and what a failure looks like
+- [Annotation reference](annotations.md) — `@DiffWith`, the annotated end of this escape hatch
+- [Architecture](architecture.md) — why comparison and tracking have builders and patching does not

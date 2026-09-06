@@ -81,9 +81,9 @@ plugins {
 }
 
 dependencies {
-    implementation("io.github.kdiff:kdiff-annotations:0.1.0")
-    implementation("io.github.kdiff:kdiff-runtime:0.1.0")
-    ksp("io.github.kdiff:kdiff-processor:0.1.0")
+    implementation("io.github.kdiff:kdiff-annotations:0.2.0")
+    implementation("io.github.kdiff:kdiff-runtime:0.2.0")
+    ksp("io.github.kdiff:kdiff-processor:0.2.0")
 }
 ```
 
@@ -128,7 +128,9 @@ result.value      // Address(id=A1, street=1 Rue X, city=Nice)
 result.isClean    // true — every change applied
 ```
 
-And with `@Trackable`, a lambda fires as a value evolves:
+A tracker fires a lambda as a value evolves, holding the last instance it saw and comparing the next
+one against it. Naming no property tracks every property compared, and `@Trackable` on the type is how
+you narrow that once rather than at each call site:
 
 <!-- illustrative -->
 ```kotlin
@@ -140,15 +142,30 @@ tracker.update(after)
 // city: Paris -> Nice
 ```
 
-Deciding what a change *means* is a routing, with every property named by reference:
+Deciding what a change *means* is a routing, with every property named by reference — so a typo is a
+compile error rather than a string that matches nothing for ever. A value object is *framed* with
+`under`, and frames nest as deep as the model does:
 
 <!-- illustrative -->
 ```kotlin
-diff.route<Address> {
-    on(Address::city) { relocate(after.city) }
-    otherwise { audit(Diff(it)) }
+diff.route<Order> {
+    on(Order::reference) { changes -> audit(changes) }
+
+    under(Order::billing) {
+        on(Address::city) { relocate(order.billing.city) }
+    }
+
+    onEach(Order::addresses, Address::id) {
+        added { address -> register(address) }
+        moved { id, from, to -> reorder(id, from, to) }
+    }
+
+    otherwise { unhandled -> audit(Diff(unhandled)) }
 }
 ```
+
+A handler runs once per property however many changes lie under it, elements and keys arrive at their
+own types, and whatever no handler names at any depth reaches the single `otherwise`.
 
 Not your type to annotate? Describe it in ordinary Kotlin instead — same comparisons, same paths, and
 everything above works unchanged:
@@ -175,9 +192,13 @@ val AddressDiffer = differ<Address> {
 
 ## Status
 
-`0.1.0`, released — see the [changelog](CHANGELOG.md) and the
-[releases](https://github.com/rcapraro/kdiff/releases). The modules are published to GitHub Packages;
-no compatibility guarantee is offered before `1.0.0`.
+Released and published to GitHub Packages. The [changelog](CHANGELOG.md) says what each version
+changed and the [releases](https://github.com/rcapraro/kdiff/releases) page carries the same notes —
+between them they are the only description of a version, so this page does not repeat one.
+
+No compatibility guarantee is offered before `1.0.0`, and
+[what kdiff does not do](docs/architecture.md#what-kdiff-does-not-do) is worth reading before adopting
+it.
 
 ## Contributing
 

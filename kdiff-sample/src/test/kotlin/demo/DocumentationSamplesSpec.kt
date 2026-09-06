@@ -38,7 +38,50 @@ private fun documentationPages(): List<File> =
     (listOf(repoRoot.resolve("README.md")) + repoRoot.resolve("docs").listFiles().orEmpty().sorted())
         .filter { it.isFile && it.extension == "md" }
 
+/**
+ * The pages the coordinate check reads: the sample-bearing pages plus the ones that only ever mention
+ * a coordinate in prose.
+ *
+ * `CONTRIBUTING.md` is where this rule is written down and is already a declared input of this task,
+ * so leaving it unchecked would let the page describing the guard rail be the one that goes stale.
+ */
+private fun coordinateBearingPages(): List<File> =
+    (documentationPages() + repoRoot.resolve("CONTRIBUTING.md")).filter { it.isFile }
+
 private fun File.relativePage(): String = relativeTo(repoRoot).path
+
+/**
+ * The version every published coordinate on these pages must name.
+ *
+ * A coordinate is the first thing a reader copies and the one thing the marker check cannot reach:
+ * no file in this repository declares an external Maven coordinate, so an install snippet is
+ * necessarily `illustrative` and was checked against nothing. It went stale at the first release, on
+ * a page that also told the reader which release it was describing. Pinning it to the build is what
+ * a release checklist item failed to do.
+ */
+private val publishedVersion = System.getProperty("kdiff.version")
+    ?: error("kdiff.version is not set; the test must be run through Gradle")
+
+/**
+ * Every `io.github.kdiff:<module>:<version>` on a page, wherever it sits.
+ *
+ * Deliberately over the whole page rather than over fenced Kotlin blocks: a coordinate is just as
+ * wrong in prose or in a shell snippet, and scanning the text needs no opinion about which fence it
+ * was written in.
+ *
+ * A version held in a variable — `kdiff-runtime:$kdiffVersion`, or `${'$'}{libs.versions.kdiff}` — is
+ * skipped rather than compared. It cannot go stale, since whatever it resolves to is not written here.
+ */
+private val COORDINATE = Regex("""io\.github\.kdiff:[\w-]+:([^"'\s)]+)""")
+
+private fun String.isLiteralVersion(): Boolean = none { it == '$' || it == '{' }
+
+private fun File.staleCoordinates(): List<String> = COORDINATE.findAll(readText())
+    .map { it to it.groupValues[1] }
+    .filter { (_, version) -> version.isLiteralVersion() }
+    .filterNot { (_, version) -> version == publishedVersion }
+    .map { (match, _) -> "${relativePage()}: ${match.value}" }
+    .toList()
 
 /** Every fenced Kotlin block on a page, with the source it claims to mirror when it declares one. */
 private fun File.kotlinBlocks(): List<Block> {
@@ -85,6 +128,10 @@ class DocumentationSamplesSpec : FunSpec({
 
     test("the documentation pages exist to be checked") {
         pages.map { it.relativePage() }.shouldNotBeEmptyList()
+    }
+
+    test("every published coordinate in the documentation names version $publishedVersion") {
+        coordinateBearingPages().flatMap { it.staleCoordinates() }.shouldBeEmpty()
     }
 
     pages.forEach { page ->

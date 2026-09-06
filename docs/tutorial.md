@@ -7,9 +7,48 @@ it actually asks to change, and each change becomes the domain event that says w
 That is the idea worth taking away. Given the state you hold and the state a caller wants, the diff
 between them **is** the command's intent, decomposed into operations.
 
+Which makes the whole application one line of reasoning, from a command to the events it meant:
+
+```
+   UpdatePerson                 the caller's request: what may be set,
+        |                       no identity, no bookkeeping
+        | applyTo(current)      copy() carries the rest across untouched
+        v
+    desired  ---------+
+                      |
+    current  ---------+---> PersonDiffer.trackedDiff(current, desired, PersonScope)
+        ^                              |
+        |                              |  PersonScope = except(lastSeenAt)
+   repository                          |  "is this difference MEANINGFUL?"
+                                       v
+                                    Diff  -- a flat, ordered list of changes
+                                       |
+                                       | route<Person> { }
+                                       |  "what does this change MEAN?"
+                       +---------------+----------------+
+                       |               |                |
+                on(Person::name)  under(::contact)  onEach(::addresses)
+                       |               |                |
+                       v               v                v
+                  PersonRenamed   EmailChanged     AddressAdded
+                                  PhoneNumber...   AddressesReordered
+                                                   AddressEdited
+                       |               |                |
+                       +---------------+----------------+
+                                       |
+                                       |  named by no handler at any depth
+                                       v
+                                  otherwise  -->  audited
+```
+
+Three questions, asked in order and answered in three different places: the differ says *what
+differs*, the scope says *what counts*, and the routing says *what it means*. None of them knows about
+the others.
+
 The domain here carries no kdiff annotation at all — it is ordinary Kotlin a domain expert could read,
-and everything kdiff knows about it lives in one file elsewhere. The [same model annotated](#the-same-model-annotated)
-follows at the end; a test in the module holds the two routes to the same output.
+and everything kdiff knows about it lives in one file elsewhere. If you came for the annotations, the
+[same model annotated](#the-same-model-annotated) is at the end and reaches the identical result —
+jump there and read back. A test in the module holds the two routes to the same output.
 
 Everything here is real, compiled code in the `kdiff-tutorial` module. Run it:
 
@@ -320,8 +359,8 @@ replay.
 
 ## Putting it together
 
-One command that renames, adds a nickname, reorders one address, edits another, adds a third, retires
-the person and adds a tag:
+One command that renames, adds a nickname, fills in an email, corrects a dialling code, reorders one
+address, edits another, adds a third, retires the person and adds a tag:
 
 ```
 $ ./gradlew :kdiff-tutorial:run
@@ -329,9 +368,11 @@ $ ./gradlew :kdiff-tutorial:run
 > UpdatePerson(id=P1)
   PersonRenamed(personId=P1, before=Ada Byron, after=Ada Lovelace)
   NicknameChanged(personId=P1, before=null, after=Countess)
+  EmailChanged(personId=P1, before=null, after=ada@analyticalengine.co)
+  PhoneCountryCorrected(personId=P1, before=44, after=33)
+  AddressAdded(personId=P1, address=Address(id=A3, line1=9 Rue Lovelace, city=Lyon, country=FR))
   AddressesReordered(personId=P1, addressId=A1, from=0, to=1)
   AddressesReordered(personId=P1, addressId=A2, from=1, to=0)
-  AddressAdded(personId=P1, address=Address(id=A3, line1=9 Rue Lovelace, city=Lyon, country=FR))
   AddressEdited(personId=P1, before=Address(id=A1, line1=12 Bishopsgate, city=London, country=GB), after=Address(id=A1, line1=12 Bishopsgate, city=Ockham, country=GB))
   EmploymentChanged(personId=P1, before=Employed(employer=Analytical Engine Co, since=1843), after=Retired(since=1852))
 > TouchPerson(id=P1)
@@ -341,8 +382,18 @@ audited transitions: 1
   tags  ADDED "programmer"
 ```
 
-Seven events for one command, one audited change that the domain has no operation for, and a
+Nine events for one command, one audited change that the domain has no operation for, and a
 `TouchPerson` that changed only an excluded property and so reported nothing at all.
+
+Two of those nine come out of a single value object, because the domain distinguishes them: reaching a
+new address is not correcting a dialling code.
+
+The order is worth reading carefully, because two different rules produce it. *Between* properties it
+is the order the differ found the changes — declaration order on `Person` — so everything from
+`contact` precedes everything from `addresses`, whatever order the handler declares its routes in.
+*Within* `onEach`, it is not the diff's order at all: additions and removals fire first, then moves,
+then `changed` once per edited element. That is why `AddressAdded` arrives before the two
+`AddressesReordered` even though the diff lists the moves first, and why `AddressEdited` comes last.
 
 ## The same model, annotated
 

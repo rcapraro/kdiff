@@ -106,3 +106,11 @@ build, and the failure is attributable to it rather than to a valid class alongs
 
 Each row above corresponds to a requirement in `openspec/specs/diff-generation/spec.md` and a test in
 `kdiff-processor`'s `DiagnosticSpec`.
+
+## Where to go next
+
+- [Diffing](diffing.md) — what `@Diffable` generates and how each shape is compared
+- [Tracking](tracking.md) — what `@Trackable` declares, and the depth these annotations carry
+- [Hand-written differs and scopes](hand-written.md) — the route for a type you cannot annotate at all
+- [Patching](patching.md) — why a compare-only `@DiffWith` object leaves its property unpatchable
+- [Architecture](architecture.md) — why an unsupported shape is a compile error rather than a fallback

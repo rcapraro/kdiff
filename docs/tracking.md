@@ -1,5 +1,8 @@
 # Tracking
 
+For reacting to change rather than inspecting it: trackers, the scope that decides what is worth
+reporting, and the depth rule that is the easiest thing here to get wrong.
+
 Diffing answers "how do these two differ?". Tracking answers "tell me when the parts I care about
 change" — you feed instances in, and a lambda fires.
 
@@ -89,6 +92,35 @@ steps only** — a collection index or key identifies a sibling, not a level of 
 
 If keys counted, `@Trackable(depth = 1)` on a `List<Address>` property would report nothing at all —
 an added element already sits two segments deep.
+
+Reading a path as steps, then, means counting only the segments that go *down*:
+
+```
+   path                        segments                    steps
+
+   total                       total                         1
+                               ^^^^^ property
+
+   addresses[id=A3]            addresses [id=A3]             1
+                               ^^^^^^^^^ property  ^^^^^^^^ identity: sideways, not down
+
+   amounts[key=eur]            amounts   [key=eur]           1
+                               ^^^^^^^ property    ^^^^^^^^ identity
+
+   billing.city                billing . city                2
+                               ^^^^^^^   ^^^^ both properties
+
+   addresses[id=A2].street     addresses [id=A2] . street    2
+                               ^^^^^^^^^         ^^^^^^ properties
+                                         ^^^^^^^ identity
+
+
+   depth = 1   keeps  |  total, addresses[id=A3], amounts[key=eur]
+               cuts   |  billing.city, addresses[id=A2].street
+```
+
+An index or a key answers *which one*; a property answers *what inside it*. Only the second is a level
+of nesting, so only the second consumes depth.
 
 <!-- from: kdiff-sample/src/test/kotlin/demo/OrderTrackingSpec.kt -->
 ```kotlin
@@ -218,3 +250,13 @@ An unrestricted scope reproduces the target exactly, as any diff does.
 
 A scope can be built by hand for a type whose source you do not own — see
 [hand-written.md](hand-written.md).
+
+## Where to go next
+
+- [Hand-written differs and scopes](hand-written.md) — `trackScope { }`, and why tracking needs no
+  escape hatch of its own
+- [Diffing](diffing.md) — `route` decides what a reported change *means*
+- [Patching](patching.md) — what `update`'s `Diff` can be applied to
+- [Annotation reference](annotations.md) — `@Trackable`, `@TrackIgnore`, `@TrackDepth` and what they
+  reject
+- [Tutorial](tutorial.md) — a scope written as `except`, so nobody counts depth

@@ -78,6 +78,15 @@ or `<!-- illustrative -->` if it is consumer-side code this repository has no fi
 a sample drifts from the code it claims to show. An unmarked block also fails the build, so the escape
 hatch stays visible.
 
+The same spec pins the published version. Every `io.github.kdiff:<module>:<version>` on a documentation
+page — this one included, in a fenced block, a shell snippet or plain prose — must name the version the
+build publishes,
+which `kdiff-sample` passes its tests as `kdiff.version`. So an install snippet cannot survive a
+release that leaves it behind, and the version belongs in as few places as possible: the release notes
+are generated from `CHANGELOG.md`, and the README links to them rather than restating which release is
+current. A coordinate whose version is a variable — `kdiff-runtime:$kdiffVersion` — is skipped, since
+what it resolves to is not written on the page and cannot go stale.
+
 ## Commits and pull requests
 
 Run `./gradlew check` before opening a pull request. Say which modules changed and whether the
