@@ -1,5 +1,8 @@
 # Patching
 
+For turning a diff back into an object: what `apply` guarantees, what it reports instead of applying,
+and why the result is partial rather than all-or-nothing.
+
 The same generated object that compares a type also applies changes back to it. One import gives you
 both directions.
 
@@ -78,6 +81,21 @@ know. The change is reported instead, and crucially, the rest of the instance st
 **A change whose path names no compared property.** A hand-constructed or stale change targeting
 something the type does not compare is reported, not ignored.
 
+## The one thing `apply` refuses outright
+
+Everything above is a *change* that could not be applied, reported alongside a usable `value`. There is
+one case where there is no value to report at all, and `apply` throws `IllegalArgumentException`
+instead: a list matched by key whose elements do not carry unique keys.
+
+Two elements sharing a `@DiffKey` value cannot be told apart — `addresses[id=A1]` names neither of them
+in particular — so the list cannot be rebuilt without writing one out twice and dropping the other.
+That is the source being uninterpretable rather than a change failing, which is why it is not a
+`PatchFailure`. It happens whatever you are applying, an empty change list included.
+
+The comparison refuses the same list for the same reason, so the two directions agree; see
+[diffing.md](diffing.md#lists). A list nested under a property that no change addresses is never
+rebuilt, so it is carried through untouched rather than examined.
+
 ## What each kind of change does when applied
 
 | Change | Effect |
@@ -107,3 +125,11 @@ element cannot be modified in place, so a change beneath one is reported as a fa
 
 A `@DiffIgnore` property produces no changes, so it keeps the source value through a patch and
 reports nothing. That is consistent with diffing: what is not compared is not reconstructed.
+
+## Where to go next
+
+- [Hand-written differs and scopes](hand-written.md) — writing the `Patcher` a builder cannot generate,
+  and making a `@DiffWith` property patchable
+- [Diffing](diffing.md) — where the changes being applied come from
+- [Tracking](tracking.md) — a narrowed scope gives selective propagation for free
+- [Architecture](architecture.md) — why patching has no builder

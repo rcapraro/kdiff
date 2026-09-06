@@ -9,6 +9,11 @@ package io.github.kdiff.runtime
  *
  * Implementations must be pure: [diff] never modifies either argument, and diffing the same pair
  * twice returns equal results.
+ *
+ * One input is refused rather than compared. A list matched by key requires that key to identify at
+ * most one element in each list; two elements sharing one leaves the comparison with no result it
+ * could report, since a path names a keyed element by its key value alone. [diff] throws
+ * [IllegalArgumentException] for such a list rather than silently comparing one of them.
  */
 public interface Differ<T> {
     public fun diff(before: T, after: T): Diff

@@ -2,21 +2,45 @@
 
 Why kdiff is shaped the way it is — for anyone deciding whether to use it, or wanting to extend it.
 
-## Four modules, and the dependency rules matter
+## Five modules, and the dependency rules matter
+
+Three modules are published. Two consume them the way you would, and exist to prove the published
+three work.
 
 ```
-kdiff-annotations   annotations only, no dependencies at all
-        ▲
-        │ (compile-time only)
-kdiff-processor     SymbolProcessor + KotlinPoet, never on a consumer's runtime classpath
-        │
-        │ emits code referencing
-        ▼
-kdiff-runtime       result types, capability interfaces, the hand-written DSL
-                    depends only on the Kotlin standard library
-
-kdiff-sample        consumes the processor end to end; the integration test
+  published                                       |  not published
+                                                  |
+  +---------------------+                         |
+  | kdiff-annotations   |  annotations only,      |   +----------------+
+  | @Diffable, @DiffKey |  no dependencies at all |   | kdiff-sample   |
+  +---------------------+                         |   | every shape,   |
+             ^                                    |   | end to end     |
+             | depends on                         |   +----------------+
+             |                                    |
+  +---------------------+                         |   +----------------+
+  | kdiff-processor     |  runs inside the        |   | kdiff-tutorial |
+  | SymbolProcessor     |  compiler; never on a   |   | a domain that  |
+  | + KotlinPoet        |  runtime classpath      |   | imports no     |
+  +---------------------+                         |   | kdiff at all,  |
+             |                                    |   | plus an        |
+             | emits code calling                 |   | annotated      |
+             v                                    |   | mirror         |
+  +---------------------+                         |   +----------------+
+  | kdiff-runtime       |  Diff, Change,          |
+  | results, interfaces |  FieldPath, differ { }  |   neither depends on the other.
+  | and the DSL         |  Kotlin stdlib only     |   each declares annotations and
+  +---------------------+                         |   runtime, plus ksp(processor)
 ```
+
+`kdiff-annotations` and `kdiff-runtime` do not depend on each other, and neither depends on the
+processor. The only arrow into `kdiff-runtime` is *generated code calling it* — a compile-time arrow
+that leaves no build-time edge, which is what lets a consumer take the runtime alone.
+
+`kdiff-sample` and `kdiff-tutorial` are ordinary consumers: both apply the KSP plugin and declare the
+same three dependencies a reader would. `kdiff-sample` is the integration test and the source every
+documentation sample is checked against; `kdiff-tutorial` is the worked application behind
+[the tutorial](tutorial.md), and its `AnnotatedParitySpec` holds the hand-written and annotated routes
+to identical output.
 
 Two rules are load-bearing rather than stylistic:
 
@@ -57,6 +81,33 @@ properties and depths, so `trackScope { }` can too. Patching has to *construct* 
 and no builder can know a constructor — so `Patcher` deliberately has none, and a hand-written patcher
 is written out in full.
 
+One question sorts the three:
+
+```
+                    does this capability need to CONSTRUCT
+                       the property's owner, or only NAME it?
+                                      |
+                +---------------------+---------------------+
+                |                                           |
+             only NAME                                  CONSTRUCT
+                |                                           |
+     +----------+----------+                                |
+     v                     v                                v
+  Differ<T>            Tracked<T>                       Patcher<T>
+  compare              track                            apply
+     |                     |                                |
+  differ { }          trackScope { }                   no builder
+  reads a property    names a property                 a builder cannot
+  through its         and a depth                      know a constructor
+  reference               |                                |
+     |                    |                           object : Patcher<T>
+  @Diffable            @Trackable                      written out in full
+```
+
+The consequences fall out of the split rather than being decided separately: a `@DiffWith` object that
+only compares sits on the left, so its property is **trackable but unpatchable**; and tracking needs no
+`@TrackWith`, because nothing on the left can fail the way construction can.
+
 That single distinction explains several things that otherwise look inconsistent: why there are two
 builders and not three; why a `@DiffWith` object that only compares makes its property *unpatchable*
 but still fully *trackable*; and why tracking needs no `@TrackWith` escape hatch at all. If you extend
@@ -86,6 +137,61 @@ reasonable way to check what the processor did.
 
 If you extend the library, put new logic in the runtime and have the processor emit a call to it.
 
+## What a comparison costs
+
+Every collection comparison is a small, fixed number of passes, and none of them searches.
+
+| Shape | How it is compared | Cost |
+|---|---|---|
+| keyed list | one `associateBy` per side, then one pass per side over the resulting maps | linear |
+| positional list | one pass to the shorter length, then the leftover tail | linear |
+| set | two set differences, `before - after` and `after - before` | linear |
+| map | one pass over each side, with a lookup into the other | linear |
+
+Linear in the number of elements, given that the key or element type hashes in constant time — a
+pathological `hashCode` is the one thing that can spoil it. There is no quadratic pairwise matching and
+no edit-distance search anywhere in the library, so no collection size makes a comparison fall off a
+cliff.
+
+Nesting composes the obvious way: a keyed list of `@Diffable` elements delegates once per matched
+element, so the total is linear in the number of *compared properties actually reached*, not in the
+top-level collection size alone.
+
+No benchmark ships with the library, so no figure is quoted here. The claim is the shape of the work,
+which is readable in `Compare.kt`, not a measurement.
+
+## What kdiff does not do
+
+Worth knowing before adopting it, because none of these is a bug to be fixed later — each is the other
+side of a decision on this page.
+
+**An unkeyed list is compared position by position.** Insert an element at the head and every following
+position reports as changed, plus one addition at the tail. There is no edit-distance matching to fall
+back on — that is the cost of the linear bound above. `@DiffKey` on the element type is the answer, and
+it is why keyed lists are the shape the library is built around.
+
+**Custom comparison is per property, not per type.** `@DiffWith` points one property at one differ.
+Comparing every `BigDecimal` in a model by `compareTo` rather than `equals` means an annotation at each
+site; there is no global registration that says "compare this type this way everywhere".
+
+**A comparison walks a tree, not an object graph.** There is no cross-graph identity — the same
+instance reached by two paths is compared twice, as two separate values — and there is no cycle
+detection. A self-reference through a nullable property is fine and terminates because the data does:
+`Node(name, next: Node?)` compares happily and reports at `next.next.name`. A genuine cycle overflows
+the stack. Building one takes a `var` constructor property, which is against the grain of a library
+built on immutable data classes, so this is a sharp edge rather than a trap — but it is unguarded, and
+the compiler will not warn you.
+
+**A `@DiffKey` must actually be unique, and you find out at runtime.** Two elements sharing a key have
+no representable diff — a path names a keyed element by its key value alone — so comparing or patching
+such a list throws rather than guessing. Uniqueness is a property of the data, so no compile error is
+possible; this is the one input the library refuses instead of describing.
+
+**Kotlin/JVM only.** No multiplatform targets, and the annotations are not designed for Java
+consumers.
+
+The compatibility position is in the README's [Status](../README.md#status); it is not repeated here.
+
 ## Compile-time diagnostics, never silent fallbacks
 
 A shape kdiff cannot handle is a compile error naming the declaration, not a fallback. A property of
@@ -111,3 +217,11 @@ Where a fact appears in both, the explanation belongs here.
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the workflow, and [the tutorial](tutorial.md) for a
 worked application that puts all three capabilities together — including the module that doubles as
 the library's ergonomics test.
+
+## Where to go next
+
+- [Tutorial](tutorial.md) — the reasoning here, applied to a whole domain
+- [Diffing](diffing.md) — the change model this page describes, in use
+- [Hand-written differs and scopes](hand-written.md) — the "does it construct?" axis at the call site
+- [Annotation reference](annotations.md) — every compile error this page's diagnostics policy produces
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — the workflow, and what will fail review

@@ -9,6 +9,12 @@ package io.github.kdiff.runtime
  *
  * Implementations must be pure: [apply] never modifies its argument, and applying the same changes
  * twice returns equal results.
+ *
+ * A change that cannot be applied is reported in [PatchResult.failures] rather than raised. The one
+ * exception is an instance [apply] cannot interpret at all: a list matched by key requires that key to
+ * identify at most one element, and two elements sharing one make [apply] throw
+ * [IllegalArgumentException] instead of returning a result. That is not a change failing — it is the
+ * source being unrebuildable, so there is no partial value to hand back.
  */
 public interface Patcher<T> {
     public fun apply(before: T, changes: List<Change>): PatchResult<T>
@@ -19,6 +25,9 @@ public interface Patcher<T> {
  *
  * Changes that could be applied are applied even when others fail, so [value] is always usable and
  * [failures] says exactly what it is missing. A caller wanting strictness checks [isClean].
+ *
+ * A result is produced whenever one can be. Where [Patcher.apply] throws instead, there is no result
+ * at all rather than an empty one.
  */
 public data class PatchResult<T>(
     public val value: T,

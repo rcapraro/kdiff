@@ -73,6 +73,25 @@ internal fun JvmCompilationResult.diffFixture(
 private fun JvmCompilationResult.loadObject(className: String): Any =
     classLoader.loadClass(className).getField("INSTANCE").get(null)
 
+/**
+ * Applies [changes] to `Fixture.before` without diffing first.
+ *
+ * Separate from [roundTripFixture] because a patcher's own behaviour has to be reachable when the
+ * comparison would refuse the same instance — otherwise the diff throws and the patcher is never
+ * reached.
+ */
+@Suppress("UNCHECKED_CAST")
+internal fun JvmCompilationResult.patchFixture(
+    differClassName: String,
+    changes: List<Change>,
+    fixtureClassName: String = "demo.Fixture",
+): PatchResult<Any?> {
+    val fixture = loadObject(fixtureClassName)
+    val before = fixture.javaClass.getMethod("getBefore").invoke(fixture)
+
+    return (loadObject(differClassName) as Patcher<Any?>).apply(before, changes)
+}
+
 /** Round-trips a compiled fixture: diff `Fixture.before` against `Fixture.after`, then apply it. */
 @Suppress("UNCHECKED_CAST")
 internal fun JvmCompilationResult.roundTripFixture(

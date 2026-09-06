@@ -86,15 +86,33 @@ public fun <T> notConstructorProperty(source: T, changes: List<Change>, property
 /**
  * Rebuilds a keyed list by computing its target state rather than replaying operations, so that no
  * index is read off a list that is being mutated (design D5).
+ *
+ * A key identifies at most one element in [source]. Two elements sharing one is an
+ * [IllegalArgumentException], raised whatever [changes] holds and an empty list included: such a list
+ * cannot be rebuilt on its own terms, because the map this works through holds one entry per key while
+ * the source holds two elements, so one would be written out twice and the other lost.
+ *
+ * Reaching this at all takes a change addressed to the list, since a caller that short-circuits on an
+ * empty change list — [patchNested] does — never calls in. So a duplicate nested under an untouched
+ * property is passed through rather than rejected. It is not rebuilt either, so nothing is lost.
+ *
+ * [name] and [keyProperty] appear only in that message and default to null, so a hand-written
+ * [Patcher] calling this directly keeps compiling and gets a message that omits them rather than one
+ * built round placeholders. Generated code passes both.
  */
 public fun <T> patchKeyedList(
     source: List<T>,
     changes: List<Change>,
     patcher: Patcher<T>,
+    name: String? = null,
+    keyProperty: String? = null,
     keyOf: (T) -> Any?,
 ): Patched<List<T>> {
     val failures = mutableListOf<PatchFailure>()
     val byKey = source.associateBy { keyOf(it) }.toMutableMap()
+
+    requireUniqueKeys(name, keyProperty, source, byKey.size, keyOf)
+
     val order = source.map { keyOf(it) }.toMutableList()
     val moves = mutableMapOf<Any?, Int>()
     val elementChanges = mutableMapOf<Any?, MutableList<Change>>()

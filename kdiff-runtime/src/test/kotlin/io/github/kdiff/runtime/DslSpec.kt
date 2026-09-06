@@ -1,5 +1,6 @@
 package io.github.kdiff.runtime
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
@@ -141,6 +142,16 @@ class DslSpec : FunSpec({
 
             changes.map { it.path.toString() } shouldContainExactly
                 listOf("addresses[id=A1].postalCode.value")
+        }
+
+        test("a hand-written keyed list rejects a repeated key exactly as a generated one does") {
+            val shadowed = home.copy(street = "9 Ada Way")
+
+            shouldThrow<IllegalArgumentException> {
+                PersonDiffer.diff(ada, ada.copy(addresses = listOf(home, shadowed)))
+            }.message shouldBe
+                "addresses is keyed by id, but two elements share the key A1. " +
+                "A keyed element must be uniquely identified; addresses[id=A1] cannot name one of them."
         }
     }
 

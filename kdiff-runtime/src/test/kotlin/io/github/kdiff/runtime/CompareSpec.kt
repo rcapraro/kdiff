@@ -1,9 +1,12 @@
 package io.github.kdiff.runtime
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 
 private data class Address(val id: String, val street: String)
 
@@ -124,6 +127,45 @@ class CompareSpec : FunSpec({
             moved.from shouldBe 1
             moved.to shouldBe 0
         }
+
+        val shadowed = Address("A1", "Rue 9")
+
+        test("a repeated key in the old list is rejected") {
+            shouldThrow<IllegalArgumentException> { keyed(listOf(a1, shadowed), listOf(a1)) }
+                .message shouldBe
+                "addresses is keyed by id, but two elements share the key A1. " +
+                "A keyed element must be uniquely identified; addresses[id=A1] cannot name one of them."
+        }
+
+        test("a repeated key in the new list is rejected") {
+            shouldThrow<IllegalArgumentException> { keyed(listOf(a1), listOf(a1, shadowed)) }
+                .message.shouldContain("share the key A1")
+        }
+
+        test("a repeated key is rejected even when the two lists are otherwise equal") {
+            shouldThrow<IllegalArgumentException> {
+                keyed(listOf(a1, shadowed), listOf(a1, shadowed))
+            }
+        }
+
+        test("a repeated key is rejected even when the duplicated elements are identical") {
+            shouldThrow<IllegalArgumentException> { keyed(listOf(a1, a1), listOf(a1)) }
+        }
+
+        test("a rejected comparison contributes nothing to the caller's change list") {
+            val changes = mutableListOf<Change>()
+
+            shouldThrow<IllegalArgumentException> {
+                changes.compareKeyedList("addresses", "id", listOf(a1, shadowed), listOf(a1), AddressDiffer) { it.id }
+            }
+
+            changes.shouldBeEmpty()
+        }
+
+        test("the same key appearing once in each list is not a duplicate") {
+            keyed(listOf(a1), listOf(a1.copy(street = "Rue X"))).map { it.path.toString() } shouldContainExactly
+                listOf("addresses[id=A1].street")
+        }
     }
 
     context("positional lists") {
@@ -135,6 +177,12 @@ class CompareSpec : FunSpec({
             val changes = positional(listOf("a", "b"), listOf("a", "c"))
 
             changes.map { it.path.toString() } shouldContainExactly listOf("tags[1]")
+        }
+
+        test("repeated elements are compared by position rather than rejected") {
+            positional(listOf("a", "a"), listOf("a", "a")).shouldBeEmpty()
+            positional(listOf("a", "a"), listOf("a", "b")).map { it.path.toString() } shouldContainExactly
+                listOf("tags[1]")
         }
 
         test("a longer new list reports additions at the trailing indices") {

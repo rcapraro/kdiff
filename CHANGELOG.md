@@ -11,6 +11,36 @@ entry written for someone deciding whether to upgrade.
 
 ## [Unreleased]
 
+### Added
+
+- A `@DiffKey` value must identify at most one element in a list. Comparing or applying a keyed list
+  whose elements share a key throws `IllegalArgumentException`, naming the property, the key property
+  and the duplicated value.
+
+  Such a list has no diff to report: a path identifies a keyed element by its key value, so
+  `addresses[id=A1]` cannot say which of two elements it means, and distinguishing them would need a
+  change variant the closed vocabulary does not have. It cannot be caught at compile time either —
+  uniqueness is a property of the data, not of the declaration — so it is a runtime precondition, and
+  both directions enforce it identically.
+
+  If a key is not unique it is not an identity: drop `@DiffKey` from the element type, or describe the
+  property with `list` rather than `keyedList`, and the list is compared by position instead, giving up
+  move reporting.
+
+- `patchKeyedList` takes `name` and `keyProperty`, so it can name the offending property in that
+  message. Both default to null; a hand-written `Patcher` that omits them gets a message without them.
+  Generated code passes both.
+
+### Changed
+
+- The guides are corrected and extended: diagrams for the change and path model, `under` frame
+  dispatch, depth counting, the module graph and the tutorial's command-to-events flow; a
+  "Where to go next" footer on every page; sections in `docs/architecture.md` on what a comparison
+  costs and what kdiff does not do; and `DiffNode`/`tree()` given a worked example.
+
+- Documented coordinates are pinned to the published version by a test, so an install snippet cannot
+  survive a release that leaves it behind.
+
 ## [0.2.0] - 2026-09-04
 
 ### Added

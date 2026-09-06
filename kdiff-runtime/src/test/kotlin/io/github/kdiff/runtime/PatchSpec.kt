@@ -1,5 +1,6 @@
 package io.github.kdiff.runtime
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -166,6 +167,44 @@ class PatchKeyedListSpec : FunSpec({
 
         patched.failures shouldHaveSize 1
         patched.value shouldContainExactly listOf(a1)
+    }
+
+    test("a source holding two elements with one key is rejected, not rebuilt as one of them twice") {
+        val shadowed = Entry("A1", "Rue 9")
+
+        shouldThrow<IllegalArgumentException> {
+            patchKeyedList(listOf(a1, shadowed), emptyList(), EntryPatcher, "entries", "id") { it.id }
+        }.message shouldBe
+            "entries is keyed by id, but two elements share the key A1. " +
+            "A keyed element must be uniquely identified; entries[id=A1] cannot name one of them."
+    }
+
+    test("a hand-written patcher omitting the names still rejects, describing the list generically") {
+        val shadowed = Entry("A1", "Rue 9")
+
+        shouldThrow<IllegalArgumentException> {
+            patchKeyedList(listOf(a1, shadowed), emptyList(), EntryPatcher) { it.id }
+        }.message.shouldContain("share the key A1")
+    }
+
+    test("a nested value no change addresses is never rebuilt, so a duplicate inside it is never reached") {
+        val neverCalled = object : Patcher<Entry> {
+            override fun apply(before: Entry, changes: List<Change>): PatchResult<Entry> =
+                error("reconstruction should not have been attempted")
+        }
+        val untouched = Entry("A1", "Rue 1")
+
+        patchNested(untouched, emptyList(), neverCalled).value shouldBe untouched
+    }
+
+    test("a round trip over a list with a repeated key refuses rather than reproducing the target") {
+        val shadowed = Entry("A1", "Rue 9")
+
+        shouldThrow<IllegalArgumentException> {
+            buildList {
+                compareKeyedList("entries", "id", listOf(a1, shadowed), listOf(a1), EntryPatcher) { it.id }
+            }
+        }
     }
 })
 

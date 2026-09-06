@@ -1,5 +1,9 @@
 # Diffing
 
+The reference for comparison: what a diff contains, how a path locates a change, how each shape of
+property is compared, and how to decide what a change means. Start with
+[the tutorial](tutorial.md) if you would rather see it working first.
+
 `@Diffable` on a data class makes the processor generate `object <Type>Differ` in the same package,
 implementing `Differ<Type>`:
 
@@ -66,6 +70,31 @@ billing.city
 addresses[id=A2].street
 tags[1]
 amounts[key=eur]
+```
+
+Every change is one of five kinds at one path, and a path is a list of three kinds of segment. Those
+two vocabularies are the whole model:
+
+```
+   a Change                            its FieldPath
+   --------                            -------------
+                                  segments, outermost first
+   ValueChanged  before, after
+   Added         value          +----------+----------+--------------+
+   Removed       value          | Field    | Index    | Key          |
+   TypeChanged   beforeType,    | (name)   | (i)      | (property,   |
+                 afterType,     |          |          |  value)      |
+                 before, after  +----------+----------+--------------+
+   Moved         from, to         "city"      [1]       [id=A2]
+                                    |          |           |
+                                    v          v           v
+                              a property   a position   an identity
+                              step         in a list    that survives
+                                           or the tail  reordering
+
+   addresses  [id=A2]  .  street       "2 Rue Y" -> "9 Rue Q"
+   ---------  -------     ------       ---------------------
+     Field      Key       Field            ValueChanged
 ```
 
 An empty path is the root object itself. A key segment retains the key **as its own value**, not as
@@ -143,6 +172,45 @@ is treated as unhandled. And a change no handler in a frame names goes to that f
 if it declares one, and otherwise back out to the enclosing routing, at the path it arrived with: so a
 single `otherwise` at the top sees everything unnamed at any depth.
 
+Where a change ends up, then, is one walk downwards and — if nothing claims it — one walk back out:
+
+```
+   change at contact.phone.number
+              |
+              v
+   route<Person> { ... }
+              |
+      does a handler name `contact`?
+              |
+        yes: under(Person::contact) -- the frame strips `contact`,
+              |                        leaving phone.number
+              v
+   frame<Contact> { ... }
+              |
+      does a handler name `phone`?
+              |
+        yes: under(Contact::phone) -- strips `phone`, leaving number
+              |
+              v
+   frame<Phone> { on(Phone::number) }  -->  HANDLED
+                     |
+                     | nothing named it
+                     v
+              frame declares its own otherwise?
+                     |
+          yes -->  that otherwise, rooted at Phone
+                     |
+           no  -->  back out to the ENCLOSING routing,
+                    at the full path it arrived with
+                    (contact.phone.number), and onwards
+                    to the top-level otherwise
+```
+
+Two things follow. A change at the framed property itself — `contact` becoming null — never enters the
+frame, because there is no segment left to strip; it is unhandled. And because an unclaimed change
+walks back out rather than being swallowed, one `otherwise` at the top is genuinely a complete
+backstop, however deep the frames go.
+
 A frame dispatches at the property's *declared* type, which is what it can name. Frame a sealed
 property and you can name the properties the sealed type declares itself, but not a subclass's own —
 and the `TypeChanged` a subclass swap reports sits at the property, so it is unhandled and reaches the
@@ -215,6 +283,37 @@ addresses[id=A2]          MOVED 0 -> 1
 
 A type may declare at most one `@DiffKey`; two is a compile error.
 
+**A swap reports two moves**, not one. Both elements changed position, so both are reported, and each
+change describes where that element ended up rather than an operation to replay:
+
+<!-- from: kdiff-runtime/src/test/kotlin/io/github/kdiff/runtime/CompareSpec.kt -->
+```kotlin
+            changes.filterIsInstance<Moved>().map { it.path.toString() } shouldContainExactlyInAnyOrder
+                listOf("addresses[id=A1]", "addresses[id=A2]")
+```
+
+**A key must identify at most one element in each list, and a repeated one is rejected.** Two elements
+carrying the same key leave the comparison with nothing it could report: a path names a keyed element
+by its key value, so `addresses[id=A1]` cannot say which of the two it means. Rather than matching one
+and discarding the other, the comparison throws:
+
+<!-- from: kdiff-runtime/src/test/kotlin/io/github/kdiff/runtime/CompareSpec.kt -->
+```kotlin
+            shouldThrow<IllegalArgumentException> { keyed(listOf(a1, shadowed), listOf(a1)) }
+                .message shouldBe
+                "addresses is keyed by id, but two elements share the key A1. " +
+                "A keyed element must be uniquely identified; addresses[id=A1] cannot name one of them."
+```
+
+The same rule applies when applying a diff, so both directions agree about the same list — and it
+applies however few changes are involved, an empty list included, because such a list cannot be
+rebuilt on its own terms.
+
+Uniqueness is a property of the data, not of the declaration: nothing in the source says the key values
+will differ, so this cannot be a compile error. If your key genuinely is not unique, it is not an
+identity — drop `@DiffKey` (or describe the property with `list` rather than `keyedList`) and the list
+is compared by position instead, giving up moves.
+
 **Without a key**, elements are compared index by index. Trailing indices present on only one side
 report as added or removed. A move is never reported — with no key there is nothing to recognise a
 moved element by.
@@ -270,8 +369,62 @@ payment     TYPE Card -> Transfer
 ```
 
 `tree()` gives the same changes grouped into a hierarchy mirroring the object graph, so changes
-sharing a path prefix sit under it. The tree holds precisely the changes the flat list holds —
-neither view invents or drops one. `DiffNode.allChanges()` flattens it back.
+sharing a path prefix sit under it. Use it when you are rendering — a UI or a report that indents by
+structure — and the flat list for everything else, which is why the flat list is what `route` and
+`apply` consume.
+
+A `DiffNode` is the segment that got you there, the changes reported at exactly that point, and the
+nodes below:
+
+<!-- from: kdiff-runtime/src/main/kotlin/io/github/kdiff/runtime/DiffNode.kt -->
+```kotlin
+public data class DiffNode(
+    public val segment: Segment?,
+    public val changes: List<Change>,
+    public val children: List<DiffNode>,
+)
+```
+
+The root node's `segment` is `null`, because no segment leads to the root. Changes sharing a prefix
+gather under one node:
+
+<!-- from: kdiff-runtime/src/test/kotlin/io/github/kdiff/runtime/ViewSpec.kt -->
+```kotlin
+        val diff = Diff(
+            listOf(
+                ValueChanged(path("address", "street"), "Rue X", "Rue Y"),
+                ValueChanged(path("address", "city"), "Paris", "Lyon"),
+            ),
+        )
+
+        val children = diff.tree().children
+
+        children.size shouldBe 1
+        children.single().segment shouldBe Segment.Field("address")
+        children.single().children.size shouldBe 2
+```
+
+```
+   flat                                tree
+
+   address.street  "Rue X" -> "Rue Y"   (root)
+   address.city    "Paris" -> "Lyon"      |
+                                          +-- Field(address)
+                                                |
+                                                +-- Field(street)   ValueChanged
+                                                +-- Field(city)     ValueChanged
+```
+
+Two guarantees make the two views interchangeable. A change reported at the root sits on the root node
+rather than being given a child it has no segment for, and `allChanges()` flattens a tree back to
+exactly the changes it was built from — neither view invents or drops one:
+
+<!-- from: kdiff-runtime/src/test/kotlin/io/github/kdiff/runtime/ViewSpec.kt -->
+```kotlin
+        Diff(changes).tree().allChanges() shouldContainExactlyInAnyOrder changes
+```
+
+An empty diff gives a tree whose `isEmpty` is true and which has no children at all.
 
 ## When kdiff refuses
 
@@ -282,3 +435,11 @@ technically correct and useless.
 
 See [hand-written.md](hand-written.md) for the `@DiffWith` escape hatch, and
 [annotations.md](annotations.md) for the full list of what is rejected.
+
+## Where to go next
+
+- [Patching](patching.md) — turning the changes you have just read back into an object
+- [Tracking](tracking.md) — reporting only the changes worth reacting to
+- [Hand-written differs and scopes](hand-written.md) — describing a type you cannot annotate
+- [Annotation reference](annotations.md) — every annotation, and what each rejects
+- [Tutorial](tutorial.md) — routing worked through as a whole application

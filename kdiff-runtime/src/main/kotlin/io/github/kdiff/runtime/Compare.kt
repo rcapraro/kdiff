@@ -42,8 +42,49 @@ public fun <T : Any> MutableList<Change>.compareNestedNullable(
 }
 
 /**
+ * Fails when [elements] hold two entries carrying one key.
+ *
+ * A keyed comparison has no representable result for a repeated key: a path identifies an element by
+ * its key value, so `addresses[id=A1]` could not say which of the two it means, and no change reported
+ * there would be actionable. Matching one and discarding the rest loses an element silently, which is
+ * what this replaces.
+ *
+ * [distinctKeys] is the size of a map the caller has already built by key, so the happy path costs one
+ * integer comparison. The walk that names the offending key runs only when the check has already
+ * failed.
+ */
+internal fun <T> requireUniqueKeys(
+    name: String?,
+    keyProperty: String?,
+    elements: List<T>,
+    distinctKeys: Int,
+    keyOf: (T) -> Any?,
+) {
+    require(distinctKeys == elements.size) {
+        val seen = HashSet<Any?>(elements.size)
+        val duplicate = elements.map(keyOf).first { !seen.add(it) }
+
+        // Named for the two routes that have names to give — a generated differ and a `keyedList`
+        // builder. A hand-written patcher calling the helper directly has neither, and a message
+        // built round placeholders reads worse than one that simply omits them.
+        if (name == null || keyProperty == null) {
+            "two elements of a keyed list share the key $duplicate, " +
+                "and a keyed element must be uniquely identified."
+        } else {
+            "$name is keyed by $keyProperty, but two elements share the key $duplicate. " +
+                "A keyed element must be uniquely identified; " +
+                "$name[$keyProperty=$duplicate] cannot name one of them."
+        }
+    }
+}
+
+/**
  * Compares a list whose elements carry an identity, matching by [keyOf] rather than by position so
  * that a reordered element reports as moved instead of as a removal and an addition.
+ *
+ * A key identifies at most one element in each list. Two elements sharing one is an
+ * [IllegalArgumentException]: see [requireUniqueKeys] for why such a comparison has no result to
+ * report.
  */
 public fun <T> MutableList<Change>.compareKeyedList(
     name: String,
@@ -55,6 +96,9 @@ public fun <T> MutableList<Change>.compareKeyedList(
 ) {
     val beforeByKey = before.withIndex().associateBy { keyOf(it.value) }
     val afterByKey = after.withIndex().associateBy { keyOf(it.value) }
+
+    requireUniqueKeys(name, keyProperty, before, beforeByKey.size, keyOf)
+    requireUniqueKeys(name, keyProperty, after, afterByKey.size, keyOf)
 
     beforeByKey.forEach { (key, old) ->
         val new = afterByKey[key]

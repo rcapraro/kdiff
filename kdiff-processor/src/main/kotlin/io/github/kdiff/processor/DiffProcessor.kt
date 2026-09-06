@@ -342,8 +342,9 @@ public class DiffProcessor(
             }
 
             is Comparison.KeyedList -> CodeBlock.of(
-                "val %N = %M(before.%N, %L, %T) { it.%N }\n",
-                patched, PATCH_KEYED_LIST, name, changes, comparison.differ, comparison.keyProperty,
+                "val %N = %M(before.%N, %L, %T, %S, %S) { it.%N }\n",
+                patched, PATCH_KEYED_LIST, name, changes, comparison.differ,
+                name, comparison.keyProperty, comparison.keyProperty,
             )
 
             is Comparison.PositionalList -> if (comparison.differ == null) {
