@@ -174,13 +174,28 @@ it is why keyed lists are the shape the library is built around.
 Comparing every `BigDecimal` in a model by `compareTo` rather than `equals` means an annotation at each
 site; there is no global registration that says "compare this type this way everywhere".
 
-**A comparison walks a tree, not an object graph.** There is no cross-graph identity — the same
-instance reached by two paths is compared twice, as two separate values — and there is no cycle
-detection. A self-reference through a nullable property is fine and terminates because the data does:
-`Node(name, next: Node?)` compares happily and reports at `next.next.name`. A genuine cycle overflows
-the stack. Building one takes a `var` constructor property, which is against the grain of a library
-built on immutable data classes, so this is a sharp edge rather than a trap — but it is unguarded, and
-the compiler will not warn you.
+**A comparison walks a tree, not an object graph.** There is no cross-graph identity: the same
+instance reached by two paths is compared twice, as two separate values. A self-reference through a
+nullable property is fine and terminates because the data does — `Node(name, next: Node?)` compares
+happily and reports at `next.next.name`.
+
+A genuine cycle no longer overflows the stack, **as long as the comparison descends through kdiff's
+own helpers** — which a generated differ always does, and a `differ { }` one does too. The bound lives
+in `compareNested`, the collection helpers and their patching counterparts; a hand-written
+`object : Differ<T>` that calls another differ directly bypasses it and can still overflow. Delegating
+through `compareNested` rather than calling `diff` yourself is what keeps that from being possible.
+
+Where it applies, comparing and applying descend at most `MAX_DESCENT` (512) nested levels and then
+raise `CyclicStructureException`, naming the path they stopped at and saying whether an instance was
+re-entered — a cycle — or the structure is simply deeper than kdiff descends. Identity is only recorded over the last stretch of the descent, so a cycle longer than that
+window is still refused, with a message that says no repeat was observed rather than claiming there is
+none.
+
+This costs about 9% of comparison throughput on a model with nested `@Diffable` properties, and 13% at
+six levels of nesting; collections and flat types pay nothing. That was measured, not estimated, and
+accepted: a `StackOverflowError` is not a diagnosis.
+
+What the guard does *not* do is make a cyclic graph comparable. It reports the cycle and stops.
 
 **A `@DiffKey` must actually be unique, and you find out at runtime.** Two elements sharing a key have
 no representable diff — a path names a keyed element by its key value alone — so comparing or patching

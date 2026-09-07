@@ -1,5 +1,7 @@
 package io.github.kdiff.runtime
 
+import kotlin.reflect.KProperty1
+
 /**
  * A single difference found between two instances, located at [path].
  *
@@ -86,14 +88,90 @@ internal fun Change.withPath(path: FieldPath): Change = when (this) {
  *
  * A `Diff` is a value — two results built from the same changes are equal.
  */
-public data class Diff(public val changes: List<Change>) {
+public data class Diff(public val changes: List<Change>) : Iterable<Change> {
+
+    /**
+     * The changes this diff holds, so the standard library's operators apply to a `Diff` directly.
+     *
+     * [Iterable] rather than `List`: a `Diff` is a value that equals only another `Diff`, so claiming
+     * to be a list while equalling none would mislead, and `subList`, `indexOf` and `listIterator`
+     * are twenty members of surface nobody asked for. Iteration, [size] and [isEmpty] are what a
+     * caller actually reaches for, and [changes] is still there for anything else.
+     */
+    override fun iterator(): Iterator<Change> = changes.iterator()
+
+    /** How many changes were found. */
+    public val size: Int
+        get() = changes.size
+
     /** True when the two instances compared as equivalent. */
-    public val isEmpty: Boolean
-        get() = changes.isEmpty()
+    public fun isEmpty(): Boolean = changes.isEmpty()
+
+    /** True when at least one change was found. */
+    public fun isNotEmpty(): Boolean = changes.isNotEmpty()
+
+    /**
+     * Every change this diff holds followed by every change [other] holds.
+     *
+     * Concatenation, not reconciliation: two changes at one path are both kept, in the order given.
+     * Nothing here decides what two conflicting changes mean, because nothing here can.
+     */
+    public operator fun plus(other: Diff): Diff = when {
+        changes.isEmpty() -> other
+        other.changes.isEmpty() -> this
+        else -> Diff(changes + other.changes)
+    }
 
     /** The same changes grouped into a hierarchy mirroring the object graph. */
     public fun tree(): DiffNode = buildTree(changes)
 
     /** The same changes as human-readable text, one line each. */
     public fun render(): String = renderChanges(changes)
+
+    public companion object {
+        /** The diff that found nothing, for a caller with nothing to report. */
+        public val EMPTY: Diff = Diff(emptyList())
+    }
+}
+
+/** A diff over the changes given, so a caller assembling changes need not build a list first. */
+public fun Diff(vararg changes: Change): Diff = Diff(changes.asList())
+
+/**
+ * The changes reported *at* [property] itself, and nothing nested beneath it.
+ *
+ * The property is named by reference rather than by text, so no string is matched and a rename of the
+ * property reaches this call site.
+ *
+ * It does **not** check that the property belongs to the diffed type unless you say which type that
+ * is. `Diff` carries no type argument, so [T] is inferred from [property] alone and
+ * `orderDiff.at(Address::street)` compiles, matching by name and finding nothing. Naming the type
+ * restores the check:
+ *
+ * ```
+ * orderDiff.at<Order>(Order::billing)     // checked
+ * orderDiff.at<Order>(Address::street)    // does not compile
+ * orderDiff.at(Address::street)           // compiles, and matches nothing
+ * ```
+ *
+ * [Diff.route] does not have this hole, because its type argument is given at the call site and every
+ * property it names is checked against it. Prefer routing when dispatching on several properties;
+ * this is for narrowing one.
+ */
+public fun <T> Diff.at(property: KProperty1<T, *>): Diff =
+    narrow { it.size == 1 && it.first().let { segment -> segment is Segment.Field && segment.name == property.name } }
+
+/**
+ * The changes reported at [property] *or anywhere beneath it*.
+ *
+ * The counterpart of `route`'s `under`: [at] is the property changing, this is the property or
+ * anything inside it changing. [T] is inferred from [property] exactly as in [at] — name the type to
+ * have it checked.
+ */
+public fun <T> Diff.under(property: KProperty1<T, *>): Diff =
+    narrow { it.firstOrNull().let { segment -> segment is Segment.Field && segment.name == property.name } }
+
+private inline fun Diff.narrow(keep: (List<Segment>) -> Boolean): Diff {
+    val kept = changes.filter { keep(it.path.segments) }
+    return if (kept.size == changes.size) this else Diff(kept)
 }

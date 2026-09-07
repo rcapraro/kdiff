@@ -131,7 +131,15 @@ of nesting, so only the second consumes depth.
 ```
 
 `UNLIMITED_DEPTH` excludes nothing. A depth of zero, or any other negative value, is rejected where
-it is declared.
+it is declared — as a compile error on an annotated class, and as an `IllegalArgumentException` where
+a hand-written scope is built, before any tracker can hold it. That holds for a scope's own depth and
+for one property's, through `trackScope { }` and through a scope declared inline while creating a
+`tracker`: both offer the same `ScopeDeclaration<T>` members over one implementation, so neither
+accepts a scope the other rejects.
+
+This depth is unrelated to `MAX_DESCENT`, the bound at which comparison refuses a cyclic structure.
+Both count nesting, but tracking depth *filters* a change while the descent bound *refuses* a
+structure.
 
 ### Depth filters — it does not roll up
 

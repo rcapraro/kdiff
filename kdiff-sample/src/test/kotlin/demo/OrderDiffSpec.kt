@@ -36,7 +36,7 @@ class OrderDiffSpec :
     FunSpec({
 
         test("an unchanged order reports nothing") {
-            OrderDiffer.diff(order, order).isEmpty shouldBe true
+            OrderDiffer.diff(order, order).isEmpty() shouldBe true
         }
 
         test("a changed scalar is reported at its property") {
@@ -57,7 +57,7 @@ class OrderDiffSpec :
         }
 
         test("an ignored property never reports, however much it differs") {
-            diff(order.copy(lastTouched = "friday")).isEmpty shouldBe true
+            diff(order.copy(lastTouched = "friday")).isEmpty() shouldBe true
         }
 
         test("a nested change is reported at a nested path") {

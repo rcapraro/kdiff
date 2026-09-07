@@ -1,0 +1,537 @@
+public final class io/github/kdiff/runtime/Added : io/github/kdiff/runtime/Change {
+	public synthetic fun <init> (Ljava/util/List;Ljava/lang/Object;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-XiclW14 ()Ljava/util/List;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun copy-aF3_oG8 (Ljava/util/List;Ljava/lang/Object;)Lio/github/kdiff/runtime/Added;
+	public static synthetic fun copy-aF3_oG8$default (Lio/github/kdiff/runtime/Added;Ljava/util/List;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/kdiff/runtime/Added;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getPath-XiclW14 ()Ljava/util/List;
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun prefixedWith (Lio/github/kdiff/runtime/Segment;)Lio/github/kdiff/runtime/Added;
+	public synthetic fun prefixedWith (Lio/github/kdiff/runtime/Segment;)Lio/github/kdiff/runtime/Change;
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/kdiff/runtime/Change {
+	public abstract fun getPath-XiclW14 ()Ljava/util/List;
+	public abstract fun prefixedWith (Lio/github/kdiff/runtime/Segment;)Lio/github/kdiff/runtime/Change;
+}
+
+public final class io/github/kdiff/runtime/ChangeRoutes {
+	public fun <init> ()V
+	public final fun dispatch (Ljava/util/List;)Ljava/util/List;
+	public final fun on (Lkotlin/reflect/KProperty1;Lkotlin/jvm/functions/Function1;)V
+	public final fun otherwise (Lkotlin/jvm/functions/Function1;)V
+	public final fun register (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
+	public final fun under (Lkotlin/reflect/KProperty1;Lkotlin/jvm/functions/Function1;)V
+}
+
+public final class io/github/kdiff/runtime/CompareKt {
+	public static final fun compareKeyedList (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Lio/github/kdiff/runtime/Differ;Lkotlin/jvm/functions/Function1;)V
+	public static final fun compareMap (Ljava/util/List;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Lio/github/kdiff/runtime/Differ;)V
+	public static final fun compareNested (Ljava/util/List;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;Lio/github/kdiff/runtime/Differ;)V
+	public static final fun compareNestedNullable (Ljava/util/List;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;Lio/github/kdiff/runtime/Differ;)V
+	public static final fun comparePositionalList (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Lio/github/kdiff/runtime/Differ;)V
+	public static final fun compareSet (Ljava/util/List;Ljava/lang/String;Ljava/util/Set;Ljava/util/Set;)V
+	public static final fun compareValue (Ljava/util/List;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V
+}
+
+public final class io/github/kdiff/runtime/CyclicStructureException : java/lang/IllegalArgumentException {
+	public final fun getPath-XiclW14 ()Ljava/util/List;
+	public final fun getRepeated ()Z
+}
+
+public final class io/github/kdiff/runtime/Diff : java/lang/Iterable, kotlin/jvm/internal/markers/KMappedMarker {
+	public static final field Companion Lio/github/kdiff/runtime/Diff$Companion;
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lio/github/kdiff/runtime/Diff;
+	public static synthetic fun copy$default (Lio/github/kdiff/runtime/Diff;Ljava/util/List;ILjava/lang/Object;)Lio/github/kdiff/runtime/Diff;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getChanges ()Ljava/util/List;
+	public final fun getSize ()I
+	public fun hashCode ()I
+	public final fun isEmpty ()Z
+	public final fun isNotEmpty ()Z
+	public fun iterator ()Ljava/util/Iterator;
+	public final fun plus (Lio/github/kdiff/runtime/Diff;)Lio/github/kdiff/runtime/Diff;
+	public final fun render ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+	public final fun tree ()Lio/github/kdiff/runtime/DiffNode;
+}
+
+public final class io/github/kdiff/runtime/Diff$Companion {
+	public final fun getEMPTY ()Lio/github/kdiff/runtime/Diff;
+}
+
+public final class io/github/kdiff/runtime/DiffKt {
+	public static final fun Diff ([Lio/github/kdiff/runtime/Change;)Lio/github/kdiff/runtime/Diff;
+	public static final fun at (Lio/github/kdiff/runtime/Diff;Lkotlin/reflect/KProperty1;)Lio/github/kdiff/runtime/Diff;
+	public static final fun under (Lio/github/kdiff/runtime/Diff;Lkotlin/reflect/KProperty1;)Lio/github/kdiff/runtime/Diff;
+}
+
+public final class io/github/kdiff/runtime/DiffNode {
+	public fun <init> (Lio/github/kdiff/runtime/Segment;Ljava/util/List;Ljava/util/List;)V
+	public final fun allChanges ()Ljava/util/List;
+	public final fun component1 ()Lio/github/kdiff/runtime/Segment;
+	public final fun component2 ()Ljava/util/List;
+	public final fun component3 ()Ljava/util/List;
+	public final fun copy (Lio/github/kdiff/runtime/Segment;Ljava/util/List;Ljava/util/List;)Lio/github/kdiff/runtime/DiffNode;
+	public static synthetic fun copy$default (Lio/github/kdiff/runtime/DiffNode;Lio/github/kdiff/runtime/Segment;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Lio/github/kdiff/runtime/DiffNode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getChanges ()Ljava/util/List;
+	public final fun getChildren ()Ljava/util/List;
+	public final fun getSegment ()Lio/github/kdiff/runtime/Segment;
+	public fun hashCode ()I
+	public final fun isEmpty ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/kdiff/runtime/Differ {
+	public abstract fun diff (Ljava/lang/Object;Ljava/lang/Object;)Lio/github/kdiff/runtime/Diff;
+}
+
+public final class io/github/kdiff/runtime/DifferBuilder {
+	public fun <init> ()V
+	public final fun build ()Lio/github/kdiff/runtime/Differ;
+	public final fun field (Lkotlin/reflect/KProperty1;)V
+	public final fun keyedList (Lkotlin/reflect/KProperty1;Lkotlin/reflect/KProperty1;Lio/github/kdiff/runtime/Differ;)V
+	public final fun list (Lkotlin/reflect/KProperty1;Lio/github/kdiff/runtime/Differ;)V
+	public static synthetic fun list$default (Lio/github/kdiff/runtime/DifferBuilder;Lkotlin/reflect/KProperty1;Lio/github/kdiff/runtime/Differ;ILjava/lang/Object;)V
+	public final fun map (Lkotlin/reflect/KProperty1;Lio/github/kdiff/runtime/Differ;)V
+	public static synthetic fun map$default (Lio/github/kdiff/runtime/DifferBuilder;Lkotlin/reflect/KProperty1;Lio/github/kdiff/runtime/Differ;ILjava/lang/Object;)V
+	public final fun nested (Lkotlin/reflect/KProperty1;Lio/github/kdiff/runtime/Differ;)V
+	public final fun set (Lkotlin/reflect/KProperty1;)V
+	public final fun subtype (Lkotlin/reflect/KClass;Lio/github/kdiff/runtime/Differ;)V
+}
+
+public final class io/github/kdiff/runtime/DslKt {
+	public static final fun differ (Lkotlin/jvm/functions/Function1;)Lio/github/kdiff/runtime/Differ;
+	public static final fun trackScope (Lkotlin/jvm/functions/Function1;)Lio/github/kdiff/runtime/TrackScope;
+}
+
+public final class io/github/kdiff/runtime/DuplicateDiffKeyException : java/lang/IllegalArgumentException {
+	public final fun getKey ()Ljava/lang/Object;
+	public final fun getKeyProperty ()Ljava/lang/String;
+	public final fun getProperty ()Ljava/lang/String;
+}
+
+public class io/github/kdiff/runtime/ElementRoutes {
+	public fun <init> (Lkotlin/reflect/KClass;)V
+	public final fun added (Lkotlin/jvm/functions/Function1;)V
+	public fun dispatch (Ljava/util/List;)Ljava/util/List;
+	public final fun removed (Lkotlin/jvm/functions/Function1;)V
+}
+
+public final class io/github/kdiff/runtime/ErrorsKt {
+	public static final field MAX_DESCENT I
+}
+
+public final class io/github/kdiff/runtime/FieldPath {
+	public static final field Companion Lio/github/kdiff/runtime/FieldPath$Companion;
+	public static final synthetic fun box-impl (Ljava/util/List;)Lio/github/kdiff/runtime/FieldPath;
+	public static fun constructor-impl (Ljava/util/List;)Ljava/util/List;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/util/List;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/util/List;Ljava/util/List;)Z
+	public final fun getSegments ()Ljava/util/List;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/util/List;)I
+	public static final fun prefixedWith-LoNeuwQ (Ljava/util/List;Lio/github/kdiff/runtime/Segment;)Ljava/util/List;
+	public static final fun rootName-impl (Ljava/util/List;)Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/util/List;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/util/List;
+}
+
+public final class io/github/kdiff/runtime/FieldPath$Companion {
+	public final fun getROOT-XiclW14 ()Ljava/util/List;
+	public final fun of-LoNeuwQ (Ljava/lang/String;)Ljava/util/List;
+}
+
+public final class io/github/kdiff/runtime/GroupedChanges {
+	public final fun forProperty (Ljava/lang/String;)Ljava/util/List;
+	public final fun getUnmatched ()Ljava/util/List;
+}
+
+public abstract interface annotation class io/github/kdiff/runtime/KdiffDsl : java/lang/annotation/Annotation {
+}
+
+public final class io/github/kdiff/runtime/KeyedElementRoutes : io/github/kdiff/runtime/ElementRoutes {
+	public fun <init> (Lkotlin/reflect/KClass;Lkotlin/reflect/KClass;)V
+	public final fun changed (Lkotlin/jvm/functions/Function1;)V
+	public fun dispatch (Ljava/util/List;)Ljava/util/List;
+	public final fun moved (Lkotlin/jvm/functions/Function3;)V
+}
+
+public final class io/github/kdiff/runtime/Moved : io/github/kdiff/runtime/Change {
+	public synthetic fun <init> (Ljava/util/List;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-XiclW14 ()Ljava/util/List;
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun copy-aN_JrCA (Ljava/util/List;II)Lio/github/kdiff/runtime/Moved;
+	public static synthetic fun copy-aN_JrCA$default (Lio/github/kdiff/runtime/Moved;Ljava/util/List;IIILjava/lang/Object;)Lio/github/kdiff/runtime/Moved;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFrom ()I
+	public fun getPath-XiclW14 ()Ljava/util/List;
+	public final fun getTo ()I
+	public fun hashCode ()I
+	public synthetic fun prefixedWith (Lio/github/kdiff/runtime/Segment;)Lio/github/kdiff/runtime/Change;
+	public fun prefixedWith (Lio/github/kdiff/runtime/Segment;)Lio/github/kdiff/runtime/Moved;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailedException : java/lang/IllegalStateException {
+	public final fun getFailures ()Ljava/util/List;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure {
+	public fun <init> (Lio/github/kdiff/runtime/Change;Lio/github/kdiff/runtime/PatchFailure$Reason;)V
+	public final fun component1 ()Lio/github/kdiff/runtime/Change;
+	public final fun component2 ()Lio/github/kdiff/runtime/PatchFailure$Reason;
+	public final fun copy (Lio/github/kdiff/runtime/Change;Lio/github/kdiff/runtime/PatchFailure$Reason;)Lio/github/kdiff/runtime/PatchFailure;
+	public static synthetic fun copy$default (Lio/github/kdiff/runtime/PatchFailure;Lio/github/kdiff/runtime/Change;Lio/github/kdiff/runtime/PatchFailure$Reason;ILjava/lang/Object;)Lio/github/kdiff/runtime/PatchFailure;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getChange ()Lio/github/kdiff/runtime/Change;
+	public final fun getReason ()Lio/github/kdiff/runtime/PatchFailure$Reason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/kdiff/runtime/PatchFailure$Reason {
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$ElementComparedAsValue : io/github/kdiff/runtime/PatchFailure$Reason {
+	public static final field INSTANCE Lio/github/kdiff/runtime/PatchFailure$Reason$ElementComparedAsValue;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$EntryComparedAsValue : io/github/kdiff/runtime/PatchFailure$Reason {
+	public static final field INSTANCE Lio/github/kdiff/runtime/PatchFailure$Reason$EntryComparedAsValue;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$NoElementAtIndex : io/github/kdiff/runtime/PatchFailure$Reason {
+	public static final field INSTANCE Lio/github/kdiff/runtime/PatchFailure$Reason$NoElementAtIndex;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$NoElementForKey : io/github/kdiff/runtime/PatchFailure$Reason {
+	public static final field INSTANCE Lio/github/kdiff/runtime/PatchFailure$Reason$NoElementForKey;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$NoEntryForKey : io/github/kdiff/runtime/PatchFailure$Reason {
+	public static final field INSTANCE Lio/github/kdiff/runtime/PatchFailure$Reason$NoEntryForKey;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$NotApplicableToKeyedList : io/github/kdiff/runtime/PatchFailure$Reason {
+	public static final field INSTANCE Lio/github/kdiff/runtime/PatchFailure$Reason$NotApplicableToKeyedList;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$NotApplicableToMap : io/github/kdiff/runtime/PatchFailure$Reason {
+	public static final field INSTANCE Lio/github/kdiff/runtime/PatchFailure$Reason$NotApplicableToMap;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$NotApplicableToPositionalList : io/github/kdiff/runtime/PatchFailure$Reason {
+	public static final field INSTANCE Lio/github/kdiff/runtime/PatchFailure$Reason$NotApplicableToPositionalList;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$NotApplicableToValue : io/github/kdiff/runtime/PatchFailure$Reason {
+	public static final field INSTANCE Lio/github/kdiff/runtime/PatchFailure$Reason$NotApplicableToValue;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$NotConstructorProperty : io/github/kdiff/runtime/PatchFailure$Reason {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/github/kdiff/runtime/PatchFailure$Reason$NotConstructorProperty;
+	public static synthetic fun copy$default (Lio/github/kdiff/runtime/PatchFailure$Reason$NotConstructorProperty;Ljava/lang/String;ILjava/lang/Object;)Lio/github/kdiff/runtime/PatchFailure$Reason$NotConstructorProperty;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getProperty ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$NothingBeneathNull : io/github/kdiff/runtime/PatchFailure$Reason {
+	public static final field INSTANCE Lio/github/kdiff/runtime/PatchFailure$Reason$NothingBeneathNull;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$SetElementNotModifiable : io/github/kdiff/runtime/PatchFailure$Reason {
+	public static final field INSTANCE Lio/github/kdiff/runtime/PatchFailure$Reason$SetElementNotModifiable;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$UnknownProperty : io/github/kdiff/runtime/PatchFailure$Reason {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/github/kdiff/runtime/PatchFailure$Reason$UnknownProperty;
+	public static synthetic fun copy$default (Lio/github/kdiff/runtime/PatchFailure$Reason$UnknownProperty;Ljava/lang/String;ILjava/lang/Object;)Lio/github/kdiff/runtime/PatchFailure$Reason$UnknownProperty;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getType ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchFailure$Reason$UnpatchableProperty : io/github/kdiff/runtime/PatchFailure$Reason {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/github/kdiff/runtime/PatchFailure$Reason$UnpatchableProperty;
+	public static synthetic fun copy$default (Lio/github/kdiff/runtime/PatchFailure$Reason$UnpatchableProperty;Ljava/lang/String;ILjava/lang/Object;)Lio/github/kdiff/runtime/PatchFailure$Reason$UnpatchableProperty;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getProperty ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/PatchKt {
+	public static final fun notConstructorProperty (Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;)Lio/github/kdiff/runtime/Patched;
+	public static final fun patchKeyedList (Ljava/util/List;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;)Lio/github/kdiff/runtime/Patched;
+	public static synthetic fun patchKeyedList$default (Ljava/util/List;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lio/github/kdiff/runtime/Patched;
+	public static final fun patchMap (Ljava/util/Map;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/Patched;
+	public static final fun patchNested (Ljava/lang/Object;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/Patched;
+	public static final fun patchNestedNullable (Ljava/lang/Object;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/Patched;
+	public static final fun patchPositionalList (Ljava/util/List;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/Patched;
+	public static final fun patchSet (Ljava/util/Set;Ljava/util/List;)Lio/github/kdiff/runtime/Patched;
+	public static final fun patchValue (Ljava/lang/Object;Ljava/util/List;)Lio/github/kdiff/runtime/Patched;
+	public static final fun unpatchable (Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;)Lio/github/kdiff/runtime/Patched;
+}
+
+public final class io/github/kdiff/runtime/PatchResult {
+	public fun <init> (Ljava/lang/Object;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/Object;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/Object;Ljava/util/List;)Lio/github/kdiff/runtime/PatchResult;
+	public static synthetic fun copy$default (Lio/github/kdiff/runtime/PatchResult;Ljava/lang/Object;Ljava/util/List;ILjava/lang/Object;)Lio/github/kdiff/runtime/PatchResult;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFailures ()Ljava/util/List;
+	public final fun getOrThrow ()Ljava/lang/Object;
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public final fun isClean ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/Patched {
+	public fun <init> (Ljava/lang/Object;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/Object;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/Object;Ljava/util/List;)Lio/github/kdiff/runtime/Patched;
+	public static synthetic fun copy$default (Lio/github/kdiff/runtime/Patched;Ljava/lang/Object;Ljava/util/List;ILjava/lang/Object;)Lio/github/kdiff/runtime/Patched;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFailures ()Ljava/util/List;
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/kdiff/runtime/Patcher {
+	public abstract fun apply (Ljava/lang/Object;Ljava/util/List;)Lio/github/kdiff/runtime/PatchResult;
+}
+
+public final class io/github/kdiff/runtime/PatcherKt {
+	public static final fun groupByProperty (Ljava/util/List;Ljava/util/Set;)Lio/github/kdiff/runtime/GroupedChanges;
+	public static final fun unmatchedFailures (Lio/github/kdiff/runtime/GroupedChanges;Ljava/lang/String;)Ljava/util/List;
+}
+
+public final class io/github/kdiff/runtime/Removed : io/github/kdiff/runtime/Change {
+	public synthetic fun <init> (Ljava/util/List;Ljava/lang/Object;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-XiclW14 ()Ljava/util/List;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun copy-aF3_oG8 (Ljava/util/List;Ljava/lang/Object;)Lio/github/kdiff/runtime/Removed;
+	public static synthetic fun copy-aF3_oG8$default (Lio/github/kdiff/runtime/Removed;Ljava/util/List;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/kdiff/runtime/Removed;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getPath-XiclW14 ()Ljava/util/List;
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public synthetic fun prefixedWith (Lio/github/kdiff/runtime/Segment;)Lio/github/kdiff/runtime/Change;
+	public fun prefixedWith (Lio/github/kdiff/runtime/Segment;)Lio/github/kdiff/runtime/Removed;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/RouteKt {
+	public static final fun route (Lio/github/kdiff/runtime/Diff;Lkotlin/jvm/functions/Function1;)V
+}
+
+public abstract interface class io/github/kdiff/runtime/ScopeDeclaration {
+	public abstract fun except (Lkotlin/reflect/KProperty1;)V
+	public abstract fun field (Lkotlin/reflect/KProperty1;)V
+	public abstract fun field (Lkotlin/reflect/KProperty1;I)V
+	public abstract fun getDepth ()I
+	public abstract fun setDepth (I)V
+	public abstract fun under (Lkotlin/reflect/KProperty1;)V
+}
+
+public abstract interface class io/github/kdiff/runtime/Segment {
+}
+
+public final class io/github/kdiff/runtime/Segment$Field : io/github/kdiff/runtime/Segment {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/github/kdiff/runtime/Segment$Field;
+	public static synthetic fun copy$default (Lio/github/kdiff/runtime/Segment$Field;Ljava/lang/String;ILjava/lang/Object;)Lio/github/kdiff/runtime/Segment$Field;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/Segment$Index : io/github/kdiff/runtime/Segment {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lio/github/kdiff/runtime/Segment$Index;
+	public static synthetic fun copy$default (Lio/github/kdiff/runtime/Segment$Index;IILjava/lang/Object;)Lio/github/kdiff/runtime/Segment$Index;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getIndex ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/Segment$Key : io/github/kdiff/runtime/Segment {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;)Lio/github/kdiff/runtime/Segment$Key;
+	public static synthetic fun copy$default (Lio/github/kdiff/runtime/Segment$Key;Ljava/lang/String;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/kdiff/runtime/Segment$Key;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getProperty ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/TrackKt {
+	public static final fun trackedDiff (Lio/github/kdiff/runtime/Differ;Ljava/lang/Object;Ljava/lang/Object;Lio/github/kdiff/runtime/TrackScope;)Lio/github/kdiff/runtime/Diff;
+	public static synthetic fun trackedDiff$default (Lio/github/kdiff/runtime/Differ;Ljava/lang/Object;Ljava/lang/Object;Lio/github/kdiff/runtime/TrackScope;ILjava/lang/Object;)Lio/github/kdiff/runtime/Diff;
+	public static final fun tracker (Lio/github/kdiff/runtime/Differ;Ljava/lang/Object;Lio/github/kdiff/runtime/TrackScope;Lkotlin/jvm/functions/Function1;)Lio/github/kdiff/runtime/Tracker;
+	public static final fun tracker (Lio/github/kdiff/runtime/Differ;Ljava/lang/Object;Lkotlin/jvm/functions/Function1;)Lio/github/kdiff/runtime/Tracker;
+	public static synthetic fun tracker$default (Lio/github/kdiff/runtime/Differ;Ljava/lang/Object;Lio/github/kdiff/runtime/TrackScope;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lio/github/kdiff/runtime/Tracker;
+	public static synthetic fun tracker$default (Lio/github/kdiff/runtime/Differ;Ljava/lang/Object;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lio/github/kdiff/runtime/Tracker;
+}
+
+public final class io/github/kdiff/runtime/TrackScope {
+	public final fun getExcludedFields ()Ljava/util/Set;
+	public final fun getTrackedFields ()Ljava/util/List;
+}
+
+public final class io/github/kdiff/runtime/TrackScopeBuilder : io/github/kdiff/runtime/ScopeDeclaration {
+	public fun <init> ()V
+	public final fun build ()Lio/github/kdiff/runtime/TrackScope;
+	public fun except (Lkotlin/reflect/KProperty1;)V
+	public fun field (Lkotlin/reflect/KProperty1;)V
+	public fun field (Lkotlin/reflect/KProperty1;I)V
+	public fun getDepth ()I
+	public fun setDepth (I)V
+	public fun under (Lkotlin/reflect/KProperty1;)V
+}
+
+public final class io/github/kdiff/runtime/TrackScopeKt {
+	public static final field UNLIMITED_DEPTH I
+	public static final fun trackScopeOf ([Lio/github/kdiff/runtime/TrackedField;)Lio/github/kdiff/runtime/TrackScope;
+}
+
+public abstract interface class io/github/kdiff/runtime/Tracked {
+	public abstract fun getTrackScope ()Lio/github/kdiff/runtime/TrackScope;
+}
+
+public final class io/github/kdiff/runtime/TrackedField {
+	public fun <init> (Ljava/lang/String;I)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun copy (Ljava/lang/String;I)Lio/github/kdiff/runtime/TrackedField;
+	public static synthetic fun copy$default (Lio/github/kdiff/runtime/TrackedField;Ljava/lang/String;IILjava/lang/Object;)Lio/github/kdiff/runtime/TrackedField;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDepth ()I
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/Tracker {
+	public final fun getCurrent ()Ljava/lang/Object;
+	public final fun reset (Ljava/lang/Object;)V
+	public final fun update (Ljava/lang/Object;)Lio/github/kdiff/runtime/Diff;
+}
+
+public final class io/github/kdiff/runtime/TrackerBuilder : io/github/kdiff/runtime/ScopeDeclaration {
+	public fun <init> ()V
+	public final fun build (Lio/github/kdiff/runtime/Differ;Ljava/lang/Object;)Lio/github/kdiff/runtime/Tracker;
+	public fun except (Lkotlin/reflect/KProperty1;)V
+	public fun field (Lkotlin/reflect/KProperty1;)V
+	public fun field (Lkotlin/reflect/KProperty1;I)V
+	public fun getDepth ()I
+	public final fun onChange (Lkotlin/jvm/functions/Function3;)V
+	public final fun onFieldChange (Lkotlin/jvm/functions/Function3;)V
+	public final fun scope (Lio/github/kdiff/runtime/TrackScope;)V
+	public fun setDepth (I)V
+	public fun under (Lkotlin/reflect/KProperty1;)V
+}
+
+public final class io/github/kdiff/runtime/TypeChanged : io/github/kdiff/runtime/Change {
+	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-XiclW14 ()Ljava/util/List;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/Object;
+	public final fun component5 ()Ljava/lang/Object;
+	public final fun copy-FdCBKN0 (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)Lio/github/kdiff/runtime/TypeChanged;
+	public static synthetic fun copy-FdCBKN0$default (Lio/github/kdiff/runtime/TypeChanged;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/kdiff/runtime/TypeChanged;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAfter ()Ljava/lang/Object;
+	public final fun getAfterType ()Ljava/lang/String;
+	public final fun getBefore ()Ljava/lang/Object;
+	public final fun getBeforeType ()Ljava/lang/String;
+	public fun getPath-XiclW14 ()Ljava/util/List;
+	public fun hashCode ()I
+	public synthetic fun prefixedWith (Lio/github/kdiff/runtime/Segment;)Lio/github/kdiff/runtime/Change;
+	public fun prefixedWith (Lio/github/kdiff/runtime/Segment;)Lio/github/kdiff/runtime/TypeChanged;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/ValueChanged : io/github/kdiff/runtime/Change {
+	public synthetic fun <init> (Ljava/util/List;Ljava/lang/Object;Ljava/lang/Object;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-XiclW14 ()Ljava/util/List;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun component3 ()Ljava/lang/Object;
+	public final fun copy-aN_JrCA (Ljava/util/List;Ljava/lang/Object;Ljava/lang/Object;)Lio/github/kdiff/runtime/ValueChanged;
+	public static synthetic fun copy-aN_JrCA$default (Lio/github/kdiff/runtime/ValueChanged;Ljava/util/List;Ljava/lang/Object;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/kdiff/runtime/ValueChanged;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAfter ()Ljava/lang/Object;
+	public final fun getBefore ()Ljava/lang/Object;
+	public fun getPath-XiclW14 ()Ljava/util/List;
+	public fun hashCode ()I
+	public synthetic fun prefixedWith (Lio/github/kdiff/runtime/Segment;)Lio/github/kdiff/runtime/Change;
+	public fun prefixedWith (Lio/github/kdiff/runtime/Segment;)Lio/github/kdiff/runtime/ValueChanged;
+	public fun toString ()Ljava/lang/String;
+}
+

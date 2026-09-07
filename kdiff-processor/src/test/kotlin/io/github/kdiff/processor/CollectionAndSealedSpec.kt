@@ -50,7 +50,7 @@ class KeyedListSpec :
             val result = keyed("$a1, $a2", "$a1, $a2")
             result.exitCode shouldBe KotlinCompilation.ExitCode.OK
 
-            result.diffFixture("demo.PersonDiffer").isEmpty shouldBe true
+            result.diffFixture("demo.PersonDiffer").isEmpty() shouldBe true
         }
 
         test("a modified element is reported at its key") {

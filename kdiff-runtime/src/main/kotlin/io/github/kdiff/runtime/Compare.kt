@@ -15,7 +15,9 @@ public fun MutableList<Change>.compareValue(name: String, before: Any?, after: A
 /** Compares a non-null nested property by delegating to [differ] and lifting its paths under [name]. */
 public fun <T> MutableList<Change>.compareNested(name: String, before: T, after: T, differ: Differ<T>) {
     val field = Segment.Field(name)
-    differ.diff(before, after).changes.forEach { add(it.prefixedWith(field)) }
+    Descent.into(field, before) {
+        differ.diff(before, after).changes.forEach { add(it.prefixedWith(field)) }
+    }
 }
 
 /**
@@ -49,20 +51,10 @@ public fun <T : Any> MutableList<Change>.compareNestedNullable(
  * already building, so this only names it — leaving the check itself costing one `put` return value
  * rather than a size comparison and a second walk.
  */
-internal fun duplicateKey(name: String?, keyProperty: String?, key: Any?): Nothing {
-    // Named for the two routes that have names to give — a generated differ and a `keyedList`
-    // builder. A hand-written patcher calling the helper directly has neither, and a message
-    // built round placeholders reads worse than one that simply omits them.
-    val message = if (name == null || keyProperty == null) {
-        "two elements of a keyed list share the key $key, " +
-            "and a keyed element must be uniquely identified."
-    } else {
-        "$name is keyed by $keyProperty, but two elements share the key $key. " +
-            "A keyed element must be uniquely identified; " +
-            "$name[$keyProperty=$key] cannot name one of them."
-    }
-    throw IllegalArgumentException(message)
-}
+internal fun duplicateKey(name: String?, keyProperty: String?, key: Any?): Nothing =
+    // The message is built by the exception, so what it says and what a caller can read off it cannot
+    // drift. Both routes that refuse such a list — comparing and applying — arrive here.
+    throw DuplicateDiffKeyException(name, keyProperty, key)
 
 /**
  * Each element's position, by key, in the order the elements appear.
@@ -108,18 +100,23 @@ public fun <T> MutableList<Change>.compareKeyedList(
     val beforeByKey = indexByKey(name, keyProperty, before, keyOf)
     val afterByKey = indexByKey(name, keyProperty, after, keyOf)
 
-    beforeByKey.forEach { (key, oldPosition) ->
-        val element = Segment.Key(keyProperty, key)
-        val newPosition = afterByKey[key]
-        if (newPosition == null) {
-            add(Removed(FieldPath(listOf(field, element)), before[oldPosition]))
-            return@forEach
-        }
-        if (oldPosition != newPosition) {
-            add(Moved(FieldPath(listOf(field, element)), oldPosition, newPosition))
-        }
-        differ.diff(before[oldPosition], after[newPosition]).changes.forEach { change ->
-            add(change.prefixedWith(field, element))
+    // One step for the whole list, not one per element: what is being bounded is recursion, and a
+    // nested level enters this helper exactly once however many elements it holds. Stepping per
+    // element would cost per element and tighten nothing.
+    Descent.into(field, before) {
+        beforeByKey.forEach { (key, oldPosition) ->
+            val element = Segment.Key(keyProperty, key)
+            val newPosition = afterByKey[key]
+            if (newPosition == null) {
+                add(Removed(FieldPath(listOf(field, element)), before[oldPosition]))
+                return@forEach
+            }
+            if (oldPosition != newPosition) {
+                add(Moved(FieldPath(listOf(field, element)), oldPosition, newPosition))
+            }
+            differ.diff(before[oldPosition], after[newPosition]).changes.forEach { change ->
+                add(change.prefixedWith(field, element))
+            }
         }
     }
 
@@ -142,16 +139,20 @@ public fun <T> MutableList<Change>.comparePositionalList(
     val field = Segment.Field(name)
     val shared = minOf(before.size, after.size)
 
-    for (index in 0 until shared) {
-        val element = Segment.Index(index)
-        if (differ == null) {
+    if (differ == null) {
+        for (index in 0 until shared) {
             if (before[index] != after[index]) {
-                add(ValueChanged(FieldPath(listOf(field, element)), before[index], after[index]))
+                add(ValueChanged(FieldPath(listOf(field, Segment.Index(index))), before[index], after[index]))
             }
-            continue
         }
-        differ.diff(before[index], after[index]).changes.forEach { change ->
-            add(change.prefixedWith(field, element))
+    } else {
+        Descent.into(field, before) {
+            for (index in 0 until shared) {
+                val element = Segment.Index(index)
+                differ.diff(before[index], after[index]).changes.forEach { change ->
+                    add(change.prefixedWith(field, element))
+                }
+            }
         }
     }
 
@@ -186,18 +187,30 @@ public fun <K, V> MutableList<Change>.compareMap(
 ) {
     val field = Segment.Field(name)
 
-    before.forEach { (key, old) ->
-        val entry = Segment.Key("key", key)
-        if (key !in after) {
-            add(Removed(FieldPath(listOf(field, entry)), old))
-            return@forEach
-        }
-        val new = after.getValue(key)
-        if (differ == null) {
+    // Entries compared as opaque values cannot recurse, so they take no descent step — the same
+    // split `comparePositionalList` makes, and for the same reason: a step that can never tighten
+    // the bound is a step that only costs.
+    if (differ == null) {
+        before.forEach { (key, old) ->
+            val entry = Segment.Key("key", key)
+            if (key !in after) {
+                add(Removed(FieldPath(listOf(field, entry)), old))
+                return@forEach
+            }
+            val new = after.getValue(key)
             if (old != new) add(ValueChanged(FieldPath(listOf(field, entry)), old, new))
-            return@forEach
         }
-        differ.diff(old, new).changes.forEach { add(it.prefixedWith(field, entry)) }
+    } else {
+        Descent.into(field, before) {
+            before.forEach { (key, old) ->
+                val entry = Segment.Key("key", key)
+                if (key !in after) {
+                    add(Removed(FieldPath(listOf(field, entry)), old))
+                    return@forEach
+                }
+                differ.diff(old, after.getValue(key)).changes.forEach { add(it.prefixedWith(field, entry)) }
+            }
+        }
     }
 
     after.forEach { (key, new) ->

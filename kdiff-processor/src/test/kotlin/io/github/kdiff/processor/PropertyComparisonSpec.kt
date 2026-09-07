@@ -35,7 +35,7 @@ class PropertyComparisonSpec :
         test("identical instances produce no changes") {
             val result = compile(personSource)
 
-            result.runDiffer("demo.Person", listOf("1", "Ada"), listOf("1", "Ada")).isEmpty shouldBe true
+            result.runDiffer("demo.Person", listOf("1", "Ada"), listOf("1", "Ada")).isEmpty() shouldBe true
         }
 
         test("several changed properties are reported in declaration order") {
@@ -93,7 +93,7 @@ class PropertyComparisonSpec :
             result.exitCode shouldBe KotlinCompilation.ExitCode.OK
 
             result.runDiffer("demo.Person", listOf("1", "monday"), listOf("1", "friday"))
-                .isEmpty shouldBe true
+                .isEmpty() shouldBe true
         }
 
         test("ignoring one property leaves the others compared") {

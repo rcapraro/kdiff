@@ -148,7 +148,7 @@ class TrackingCoherenceSpec :
 
                 val patched = InvoiceDiffer.apply(invoice, diff.changes)
                 patched.isClean shouldBe false
-                patched.failures.single().reason shouldBe "weight is compared by a differ that cannot patch"
+                patched.failures.single().reason shouldBe PatchFailure.Reason.UnpatchableProperty("weight")
             }
         }
 

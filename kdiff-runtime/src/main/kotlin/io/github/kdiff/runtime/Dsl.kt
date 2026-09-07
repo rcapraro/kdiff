@@ -1,5 +1,8 @@
 package io.github.kdiff.runtime
 
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty1
 
@@ -21,9 +24,14 @@ import kotlin.reflect.KProperty1
  *
  * Property references are stdlib: reading `name` and calling `get` needs no `kotlin-reflect`.
  */
-public fun <T> differ(block: DifferBuilder<T>.() -> Unit): Differ<T> = DifferBuilder<T>().apply(block).build()
+@OptIn(ExperimentalContracts::class)
+public inline fun <T> differ(block: DifferBuilder<T>.() -> Unit): Differ<T> {
+    contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+    return DifferBuilder<T>().apply(block).build()
+}
 
-public class DifferBuilder<T> internal constructor() {
+@KdiffDsl
+public class DifferBuilder<T> @PublishedApi internal constructor() {
     private val comparisons = mutableListOf<(MutableList<Change>, T, T) -> Unit>()
     private val subtypes = mutableListOf<Subtype<T, *>>()
 
@@ -125,7 +133,15 @@ public class DifferBuilder<T> internal constructor() {
         subtypes += Subtype(type, differ)
     }
 
+    @PublishedApi
     internal fun build(): Differ<T> {
+        // A differ describing nothing reports every pair of instances as equivalent, however much they
+        // differ. The processor rejects an annotated class that offers nothing to compare; a
+        // hand-written differ has no compile step to reject it, so it is refused where it is built.
+        require(comparisons.isNotEmpty() || subtypes.isNotEmpty()) {
+            "a differ compares something: name a property, or declare a subtype to dispatch on"
+        }
+
         val comparisons = comparisons.toList()
         val subtypes = subtypes.toList()
 
@@ -163,7 +179,9 @@ private class Subtype<T, S : Any>(private val type: KClass<S>, private val diffe
 
     // Only reached through holdsBoth, which is exactly the test this cast needs.
     @Suppress("UNCHECKED_CAST")
-    fun diff(before: T, after: T): List<Change> = differ.diff(before as S, after as S).changes
+    fun diff(before: T, after: T): List<Change> = Descent.into(Segment.Field(type.simpleName.orEmpty()), before) {
+        differ.diff(before as S, after as S).changes
+    }
 }
 
 /**
@@ -183,15 +201,22 @@ private class Subtype<T, S : Any>(private val type: KClass<S>, private val diffe
  *
  * Property references are stdlib: reading `name` needs no `kotlin-reflect`, exactly as in [differ].
  */
-public fun <T> trackScope(block: TrackScopeBuilder<T>.() -> Unit): TrackScope<T> =
-    TrackScopeBuilder<T>().apply(block).build()
+@OptIn(ExperimentalContracts::class)
+public inline fun <T> trackScope(block: TrackScopeBuilder<T>.() -> Unit): TrackScope<T> {
+    contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+    return TrackScopeBuilder<T>().apply(block).build()
+}
 
-public class TrackScopeBuilder<T> internal constructor() {
-    private val fields = mutableListOf<TrackedField>()
-    private val excluded = mutableSetOf<String>()
-
-    private var statedDepth: Int? = null
-
+/**
+ * The properties a tracking scope names, and at what depth.
+ *
+ * Declared once and implemented once, so that building a scope standalone with `trackScope { }` and
+ * declaring one inline while creating a `tracker` offer the same members with the same validation.
+ * They are the same statement made in two places, and the two drifting apart — one validating a
+ * depth the other accepted — is exactly the widening this API is careful about.
+ */
+@KdiffDsl
+public interface ScopeDeclaration<T> {
     /**
      * The depth applied when this scope names no property, and so tracks every compared property.
      *
@@ -200,28 +225,15 @@ public class TrackScopeBuilder<T> internal constructor() {
      * caller reaches deeper than the type's author chose to.
      */
     public var depth: Int
-        get() = statedDepth ?: UNLIMITED_DEPTH
-        set(value) {
-            require(value == UNLIMITED_DEPTH || value >= 1) {
-                "depth must be at least 1, or UNLIMITED_DEPTH; was $value"
-            }
-            statedDepth = value
-        }
 
     /** Tracks [property] itself, and nothing nested beneath it. */
-    public fun field(property: KProperty1<T, *>) {
-        fields += TrackedField(property.name, depth = 1)
-    }
+    public fun field(property: KProperty1<T, *>)
 
     /** Tracks [property] to [depth] property steps beneath the tracked object. */
-    public fun field(property: KProperty1<T, *>, depth: Int) {
-        fields += TrackedField(property.name, depth)
-    }
+    public fun field(property: KProperty1<T, *>, depth: Int)
 
     /** Tracks [property] and everything nested beneath it, however deep. */
-    public fun under(property: KProperty1<T, *>) {
-        fields += TrackedField(property.name, UNLIMITED_DEPTH)
-    }
+    public fun under(property: KProperty1<T, *>)
 
     /**
      * Tracks every compared property except [property], the hand-written counterpart of
@@ -230,11 +242,41 @@ public class TrackScopeBuilder<T> internal constructor() {
      * Nothing beneath an excluded property is reported either, at any depth. Excluding a property the
      * differ does not compare excludes nothing: it can never appear in a change.
      */
-    public fun except(property: KProperty1<T, *>) {
+    public fun except(property: KProperty1<T, *>)
+}
+
+/** The one implementation of [ScopeDeclaration], held by both builders that offer it. */
+internal class Selectors<T> : ScopeDeclaration<T> {
+    private val fields = mutableListOf<TrackedField>()
+    private val excluded = mutableSetOf<String>()
+
+    private var statedDepth: Int? = null
+
+    override var depth: Int
+        get() = statedDepth ?: UNLIMITED_DEPTH
+        set(value) {
+            statedDepth = validDepth(value)
+        }
+
+    override fun field(property: KProperty1<T, *>) {
+        fields += TrackedField(property.name, depth = 1)
+    }
+
+    // Validated by TrackedField's own init, which names the property as well as the bound — a better
+    // message than this class could give, and the one the specs pin.
+    override fun field(property: KProperty1<T, *>, depth: Int) {
+        fields += TrackedField(property.name, depth)
+    }
+
+    override fun under(property: KProperty1<T, *>) {
+        fields += TrackedField(property.name, UNLIMITED_DEPTH)
+    }
+
+    override fun except(property: KProperty1<T, *>) {
         excluded += property.name
     }
 
-    internal fun build(): TrackScope<T> {
+    fun build(): TrackScope<T> {
         // The two say opposite things about every property named in neither, and a precedence rule
         // between them would decide silently which one widens the scope.
         require(fields.isEmpty() || excluded.isEmpty()) {
@@ -243,4 +285,26 @@ public class TrackScopeBuilder<T> internal constructor() {
 
         return TrackScope(fields.takeIf { it.isNotEmpty() }?.toList(), statedDepth, excluded.toSet())
     }
+
+    // The scope's own depth belongs to no property, so it is checked here; a property's depth is
+    // checked by TrackedField. Both routes reach both checks, because both hold this one class.
+    private fun validDepth(value: Int): Int {
+        require(value == UNLIMITED_DEPTH || value >= 1) {
+            "depth must be at least 1, or UNLIMITED_DEPTH; was $value"
+        }
+        return value
+    }
+}
+
+@KdiffDsl
+// The delegate is taken by a private constructor and reached through a no-argument one: `@PublishedApi`
+// makes a constructor public in bytecode, so exposing the internal `Selectors` there would pin a
+// private detail into the published ABI and make renaming it a recorded API change.
+public class TrackScopeBuilder<T> private constructor(private val selectors: Selectors<T>) :
+    ScopeDeclaration<T> by selectors {
+    @PublishedApi
+    internal constructor() : this(Selectors())
+
+    @PublishedApi
+    internal fun build(): TrackScope<T> = selectors.build()
 }

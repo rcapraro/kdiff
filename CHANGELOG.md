@@ -11,6 +11,86 @@ entry written for someone deciding whether to upgrade.
 
 ## [Unreleased]
 
+### Added
+
+- **A diff is a collection.** `Diff` implements `Iterable<Change>` and gains `size`, `isNotEmpty()`,
+  `plus`, a `vararg` constructor and `Diff.EMPTY`, so the standard library's operators apply to a diff
+  directly instead of through `changes`. It is deliberately `Iterable` rather than `List`: a `Diff`
+  equals only another `Diff`, and advertising list-ness while equalling no list would mislead.
+
+- **A diff narrows by property reference.** `diff.at(Order::billing)` keeps the change reported at that
+  property; `diff.under(Order::billing)` keeps that plus everything beneath it. Both return a `Diff`,
+  so they compose with each other and with `+`, and neither matches a string — renaming the property
+  reaches the call site.
+
+  Name the type — `diff.at<Order>(Order::billing)` — to have the property checked against it. `Diff`
+  carries no type argument, so an inferred type parameter comes from the property alone and
+  `orderDiff.at(Address::street)` compiles and matches nothing. `route<Order> { }` has no such hole.
+
+- **`PatchResult.getOrThrow()`** returns the value when every change applied and raises
+  `PatchFailedException`, carrying every failure, when any did not. Applying itself stays partial —
+  that is what lets a caller salvage what applied — so all-or-nothing is now a choice at the call site.
+
+- **A cyclic structure is reported instead of overflowing the stack.** Comparing and applying descend
+  at most `MAX_DESCENT` (512) nested levels and then raise `CyclicStructureException`, naming the path
+  they stopped at and saying whether an instance was re-entered — a cycle — or the structure is simply
+  deeper than kdiff descends. This costs about 9% of comparison throughput on a model with nested
+  `@Diffable` properties and 13% at six levels of nesting; collections and flat types are unaffected.
+
+- **Builder blocks are scoped and run exactly once.** `@KdiffDsl` closes every builder scope, so a
+  block nested in another can no longer reach the outer builder's members — a `route` frame calling the
+  enclosing routing's `on` used to compile and quietly register a handler against the wrong frame. Each
+  builder function also declares `callsInPlace(block, EXACTLY_ONCE)`, so a `val` can be assigned inside
+  a block and read after it.
+
+- **Build gates.** `./gradlew check` now also runs ktlint, detekt, `allWarningsAsErrors` and ABI
+  validation against a checked-in API dump per published module, so removing a public declaration fails
+  the build rather than reaching a consumer. `dokkaGenerate` builds reference documentation, and is
+  deliberately not part of `check`. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+### Changed
+
+- **BREAKING** — `PatchFailure.reason` is a sealed `PatchFailure.Reason` instead of a `String`. The
+  fourteen reasons the runtime reports are now declared cases, each carrying what it knows — the
+  property, the key, the index — so a caller can branch on why a change did not apply instead of
+  matching prose.
+
+  *Migration*: `failure.reason == "no element with this key to patch"` becomes
+  `failure.reason is PatchFailure.Reason.NoElementForKey`. A failure logged as text is unchanged:
+  `PatchFailure.toString()` renders the same sentence it always did. Like `Change`, the vocabulary is
+  closed, so adding a case is itself breaking.
+
+- **BREAKING (source only)** — `Diff.isEmpty` is now a function, `isEmpty()`, to match the shape the
+  standard library uses for every other collection.
+
+  *Migration*: add the parentheses. Kotlin compiles both a `val isEmpty: Boolean` and a
+  `fun isEmpty(): Boolean` to the same `isEmpty()Z` signature, so this is a recompile rather than a
+  link error — already-compiled callers keep working. `DiffNode.isEmpty` is unchanged and remains a
+  property.
+
+- **BREAKING** — the duplicate-`@DiffKey` refusal raises `DuplicateDiffKeyException`, carrying the list
+  property, the key property and the duplicated key value as inspectable properties. It is an
+  `IllegalArgumentException`, which is what was raised before, so an existing `catch` keeps working and
+  the message is unchanged.
+
+- **BREAKING** — `TrackScopeBuilder` and `TrackerBuilder` declare their five shared members through one
+  `ScopeDeclaration<T>` interface over one implementation, rather than one re-declaring and forwarding
+  the other's. Source-compatible for every call site inside a builder block; binary-incompatible, which
+  is what the new API dump exists to make visible.
+
+- **BREAKING** — a `differ { }` naming no property and no subtype is rejected where it is built. Such a
+  differ reported every pair of instances as equivalent however much they differed, which is the same
+  mistake the processor already rejects for an annotated class with nothing to compare.
+
+- **BREAKING** — consumers must compile at JVM target 21. The builder entry points are `inline` so they
+  can state `callsInPlace`, and Kotlin will not inline bytecode built for a higher target than the
+  module being compiled. Loading these classes already required a JVM 21; compiling against them now
+  does too.
+
+- The generated API surface is **unchanged**. No annotation means anything different, the processor is
+  untouched, and a `@Diffable` class compiles to byte-identical generated code — the breaking items
+  above are all in `kdiff-runtime`, in what a consumer writes around that code.
+
 ## [0.3.1] - 2026-09-07
 
 ### Changed

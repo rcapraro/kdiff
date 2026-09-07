@@ -93,13 +93,13 @@ class DslSpec :
             }
 
             test("a hand-written differ reports nothing for equal instances") {
-                MoneyDiffer.diff(Money("10", "EUR"), Money("10", "EUR")).isEmpty shouldBe true
+                MoneyDiffer.diff(Money("10", "EUR"), Money("10", "EUR")).isEmpty() shouldBe true
             }
 
             test("a property named nowhere is not compared") {
                 val nameOnly = differ<Money> { field(Money::amount) }
 
-                nameOnly.diff(Money("10", "EUR"), Money("10", "USD")).isEmpty shouldBe true
+                nameOnly.diff(Money("10", "EUR"), Money("10", "USD")).isEmpty() shouldBe true
             }
 
             test("a hand-written differ nests inside another hand-written differ at the full path") {
@@ -251,7 +251,7 @@ class DslSpec :
                 val partial = differ<Channel> { subtype(Email::class, EmailDiffer) }
                 val phone = Phone("work", "555")
 
-                partial.diff(phone, phone).isEmpty shouldBe true
+                partial.diff(phone, phone).isEmpty() shouldBe true
             }
 
             test("an undeclared subtype is still compared by the properties named alongside") {

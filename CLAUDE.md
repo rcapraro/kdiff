@@ -10,7 +10,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./gradlew :kdiff-runtime:test --tests '*SelectSpec*'   # one spec class (Kotest on the JUnit platform)
 ./gradlew :kdiff-sample:kspKotlin                 # regenerate the sample's differs
 ./gradlew :kdiff-sample:kspKotlin --rerun-tasks   # force regeneration when inspecting output
+
+./gradlew ktlintFormat                            # fix formatting; `check` runs ktlintCheck
+./gradlew updateKotlinAbi                         # record a deliberate public API change
+./gradlew :kdiff-benchmarks:jmh -Pjmh.includes=compare   # measure before claiming a hot path is free
 ```
+
+`check` also runs detekt (config: `config/detekt/detekt.yml`, deviations only, each with its reason),
+`allWarningsAsErrors`, and ABI validation against the dump in `<module>/api/`. **Adding or removing a
+public declaration in a published module fails `check` until `updateKotlinAbi` is run** — that diff is
+the review surface for API changes, so read it rather than regenerating it reflexively.
 
 Generated code lands in `kdiff-sample/build/generated/ksp/main/kotlin/demo/<Type>Diff.kt`. Read it
 after any processor change — it is the review surface for what the processor emits.
@@ -62,9 +71,24 @@ it — that is a spec'd requirement, not just a convention.
 
 ## The change model
 
-A `Diff` is a flat, ordered `List<Change>`. `Change` is a **sealed, deliberately closed** vocabulary
-(`ValueChanged`, `Added`, `Removed`, `TypeChanged`, `Moved`) so callers can handle it exhaustively.
-Adding a sixth variant breaks every exhaustive `when` in every consumer — treat it as breaking.
+A `Diff` is a flat, ordered `List<Change>`, and an `Iterable<Change>` in its own right. `Change` is a
+**sealed, deliberately closed** vocabulary (`ValueChanged`, `Added`, `Removed`, `TypeChanged`, `Moved`)
+so callers can handle it exhaustively. Adding a sixth variant breaks every exhaustive `when` in every
+consumer — treat it as breaking.
+
+`PatchFailure.Reason` is a **second closed vocabulary**, on the same terms: fourteen cases, rendered by
+one exhaustive `when` in `describe()`, and adding a case is breaking. A failure carries a case, never a
+sentence; `toString()` is where the sentence lives.
+
+Refusals are declared types: `DuplicateDiffKeyException` and `CyclicStructureException` (both
+`IllegalArgumentException`, so old `catch` clauses still fire) and `PatchFailedException` (an
+`IllegalStateException`, because it is a caller asking a partial result for a value it has not got).
+There is deliberately no common supertype — a marker interface cannot be caught.
+
+Comparing and applying descend at most `MAX_DESCENT` levels through `Descent.into`, which is why a
+cycle is a diagnostic rather than a `StackOverflowError`. Step **once per helper call, never per
+element**: the bound constrains recursion, and a nested level enters a collection helper exactly once
+however many elements it holds. Stepping per element cost 4–10% throughput and tightened nothing.
 
 `FieldPath` is a value class over `List<Segment>`; `Segment` is `Field(name)` | `Index(i)` |
 `Key(property, value)`. A key retains the value itself, not a rendering of it, so a keyed element can

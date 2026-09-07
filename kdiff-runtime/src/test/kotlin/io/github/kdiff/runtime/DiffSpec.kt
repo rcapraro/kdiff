@@ -11,7 +11,7 @@ class DiffSpec :
             val diff = Diff(emptyList())
 
             diff.changes shouldBe emptyList()
-            diff.isEmpty shouldBe true
+            diff.isEmpty() shouldBe true
         }
 
         test("two diffs built from the same changes are equal") {

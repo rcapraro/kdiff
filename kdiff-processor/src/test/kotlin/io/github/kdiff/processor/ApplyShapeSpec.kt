@@ -6,6 +6,7 @@ import com.tschuchort.compiletesting.SourceFile
 import io.github.kdiff.runtime.Added
 import io.github.kdiff.runtime.Change
 import io.github.kdiff.runtime.FieldPath
+import io.github.kdiff.runtime.PatchFailure
 import io.github.kdiff.runtime.PatchResult
 import io.github.kdiff.runtime.Patcher
 import io.github.kdiff.runtime.ValueChanged
@@ -111,9 +112,9 @@ class ApplyShapeSpec :
                 // `groupByProperty` strips the property segment, so a grouped failure's own path is empty;
                 // the value each change carries is what identifies which property it was addressed to.
                 patched.failures.map { it.reason to (it.change as? Added)?.value } shouldContainExactly listOf(
-                    "Order has no compared property at this path" to null,
-                    "not applicable to a value property" to "x",
-                    "not applicable to a value property" to "y",
+                    PatchFailure.Reason.UnknownProperty("Order") to null,
+                    PatchFailure.Reason.NotApplicableToValue to "x",
+                    PatchFailure.Reason.NotApplicableToValue to "y",
                 )
             }
 

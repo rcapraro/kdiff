@@ -7,7 +7,28 @@
 ./gradlew :kdiff-runtime:test                     # one module
 ./gradlew :kdiff-runtime:test --tests '*SelectSpec*'   # one spec class
 ./gradlew :kdiff-sample:kspKotlin --rerun-tasks   # regenerate the sample's differs
+
+./gradlew ktlintFormat                            # fix formatting
+./gradlew updateKotlinAbi                         # record a deliberate public API change
+./gradlew dokkaGenerate                           # build the reference documentation
+./gradlew :kdiff-benchmarks:jmh                   # measure, when a change touches a hot path
 ```
+
+`check` is still the one command CI runs. Four gates hang off it, and each names its own fix:
+
+- **ktlint**, with the formatting stated in `.editorconfig`. `ktlintFormat` fixes what it reports.
+- **detekt**, configured in `config/detekt/detekt.yml`. That file holds *only* this project's
+  deviations from the defaults, one entry per rule with the reason it is off — so if a rule is in your
+  way, argue with it there rather than adding a `@Suppress` at the site.
+- **`allWarningsAsErrors`** on every Kotlin compilation.
+- **ABI validation** for the three published modules, with the dump checked in under `<module>/api/`.
+  Adding or removing a public declaration fails `check` until you run `updateKotlinAbi`, which is the
+  point: a removal should be a line in a diff a reviewer reads, not a surprise for a consumer.
+
+detekt is pinned to a `2.0.0-alpha`. That is deliberate — it is the release built against this
+project's Kotlin, where stable 1.23.8 still embeds Kotlin 2.0.21 — and the version is pinned exactly
+so no upgrade arrives on its own. If an alpha ever breaks the build, the escape is `ignoreFailures`
+for one release with a note here saying so, not a downgrade.
 
 Generated code lands in `kdiff-sample/build/generated/ksp/main/kotlin/demo/`. Read it after any
 processor change — it is how you check what the processor actually did.

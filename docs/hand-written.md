@@ -45,6 +45,40 @@ One call per comparison shape, and between them they cover everything `@Diffable
 | `subtype(Type::class, differ)` | by dispatching on the runtime subclass | `@Diffable` on a sealed type |
 | *naming it nowhere* | not at all | `@DiffIgnore` |
 
+Naming *nothing at all* is rejected where the differ is built. A differ with an empty block reports
+every pair of instances as equivalent however much they differ, which is the same mistake the
+processor rejects for an annotated class that offers nothing to compare — so the hand-written route
+refuses it too, rather than silently comparing nothing:
+
+<!-- illustrative -->
+```kotlin
+differ<Money> { }
+// java.lang.IllegalArgumentException: a differ compares something:
+// name a property, or declare a subtype to dispatch on
+```
+
+Naming only subtypes is fine: dispatching on the runtime subclass *is* a comparison.
+
+### Builder blocks are scoped
+
+Every builder block is marked with `@KdiffDsl`, so a block nested inside another cannot reach the
+outer builder's members. Without it a differ nested inside a differ, or a routing framed under a
+property, sees both sets of members and can call the wrong one — it compiles, and it quietly does
+something nobody asked for. Where crossing the boundary is deliberate, name the outer receiver:
+
+<!-- illustrative -->
+```kotlin
+diff.route<Order> {
+    val outer = this
+    under(Order::billing) {
+        outer.on(Order::reference) { … }   // deliberate, and it says so
+    }
+}
+```
+
+Each builder function also states that it runs its block exactly once, so a `val` can be assigned
+inside a block and read after it.
+
 <!-- from: kdiff-tutorial/src/main/kotlin/tutorial/diff/PersonDiffing.kt -->
 ```kotlin
 val PersonDiffer: Differ<Person> = differ {
@@ -172,6 +206,12 @@ val PersonScope = trackScope<Person> { except(Person::lastSeenAt) }
 A scope names what it tracks or what it excludes, never both — the two say opposite things about every
 property named in neither, and guessing which one wins is how a tracker ends up reporting more than
 its caller asked for.
+
+A scope can be built standalone with `trackScope { }` or declared inline while creating a `tracker`.
+Those are the same five members — `depth`, `field`, `field(depth)`, `under`, `except` — because both
+builders implement one `ScopeDeclaration<T>` over one implementation. Neither route accepts a scope
+the other rejects, and a depth is validated wherever it is stated: on the scope, or on one property,
+through either route.
 
 So a type carrying no kdiff annotation at all can be both compared and tracked:
 

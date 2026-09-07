@@ -1,5 +1,8 @@
 package io.github.kdiff.runtime
 
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
 import kotlin.reflect.KProperty1
 
 /**
@@ -77,19 +80,26 @@ public class Tracker<T> internal constructor(
  * }
  * ```
  */
-public fun <T> tracker(differ: Differ<T>, initial: T, block: TrackerBuilder<T>.() -> Unit = {}): Tracker<T> =
-    TrackerBuilder<T>().apply(block).build(differ, initial)
+@OptIn(ExperimentalContracts::class)
+public inline fun <T> tracker(differ: Differ<T>, initial: T, block: TrackerBuilder<T>.() -> Unit = {}): Tracker<T> {
+    contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+    return TrackerBuilder<T>().apply(block).build(differ, initial)
+}
 
 /**
  * Builds a [Tracker] over [initial] from a scope prepared elsewhere, whether by `trackScope { }` or
  * read off a generated declaration, so one scope can be reused across trackers.
  */
-public fun <T> tracker(
+@OptIn(ExperimentalContracts::class)
+public inline fun <T> tracker(
     differ: Differ<T>,
     initial: T,
     scope: TrackScope<T>,
     block: TrackerBuilder<T>.() -> Unit = {},
-): Tracker<T> = TrackerBuilder<T>().apply { scope(scope) }.apply(block).build(differ, initial)
+): Tracker<T> {
+    contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+    return TrackerBuilder<T>().apply { scope(scope) }.apply(block).build(differ, initial)
+}
 
 /**
  * Compares [before] against [after] and reports only what [scope] selects, holding no baseline.
@@ -107,30 +117,17 @@ public fun <T> Differ<T>.trackedDiff(before: T, after: T, scope: TrackScope<T>? 
     return Diff(diff(before, after).changes.filter(resolved::selects))
 }
 
-public class TrackerBuilder<T> internal constructor() {
-    private val selectors = TrackScopeBuilder<T>()
+@KdiffDsl
+// Private primary, no-argument `@PublishedApi` secondary — see `TrackScopeBuilder` for why the
+// delegate must not appear in a published constructor signature.
+public class TrackerBuilder<T> private constructor(private val selectors: Selectors<T>) :
+    ScopeDeclaration<T> by selectors {
+    @PublishedApi
+    internal constructor() : this(Selectors())
+
     private var prepared: TrackScope<T>? = null
     private val fieldListeners = mutableListOf<(FieldPath, Any?, Any?) -> Unit>()
     private val changeListeners = mutableListOf<(T, T, List<Change>) -> Unit>()
-
-    /** See [TrackScopeBuilder.depth]. */
-    public var depth: Int
-        get() = selectors.depth
-        set(value) {
-            selectors.depth = value
-        }
-
-    /** Tracks [property] itself, and nothing nested beneath it. */
-    public fun field(property: KProperty1<T, *>): Unit = selectors.field(property)
-
-    /** Tracks [property] to [depth] property steps beneath the tracked object. */
-    public fun field(property: KProperty1<T, *>, depth: Int): Unit = selectors.field(property, depth)
-
-    /** Tracks [property] and everything nested beneath it, however deep. */
-    public fun under(property: KProperty1<T, *>): Unit = selectors.under(property)
-
-    /** Tracks every compared property except [property]; see [TrackScopeBuilder.except]. */
-    public fun except(property: KProperty1<T, *>): Unit = selectors.except(property)
 
     /**
      * Tracks what [scope] names, unless a property is named here as well — naming one is the more
@@ -150,6 +147,7 @@ public class TrackerBuilder<T> internal constructor() {
         changeListeners += listener
     }
 
+    @PublishedApi
     internal fun build(differ: Differ<T>, initial: T): Tracker<T> {
         val named = selectors.build()
         val given = prepared

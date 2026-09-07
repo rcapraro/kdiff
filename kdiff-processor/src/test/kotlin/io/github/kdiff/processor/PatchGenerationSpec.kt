@@ -2,6 +2,7 @@ package io.github.kdiff.processor
 
 import com.tschuchort.compiletesting.KotlinCompilation
 import com.tschuchort.compiletesting.SourceFile
+import io.github.kdiff.runtime.PatchFailure
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -208,7 +209,7 @@ class PatchFailureGenerationSpec :
             )
             val patched = result.applyWithExtra("demo.PersonDiffer", stray)
 
-            patched.failures.single().reason shouldContain "no compared property"
+            patched.failures.single().reason shouldBe PatchFailure.Reason.UnknownProperty("Person")
             patched.value.toString() shouldContain "Grace"
         }
 
@@ -228,8 +229,7 @@ class PatchFailureGenerationSpec :
 
             val patched = result.roundTripFixture("demo.PersonDiffer")
 
-            patched.failures.single().reason shouldContain "weight"
-            patched.failures.single().reason shouldContain "cannot patch"
+            patched.failures.single().reason shouldBe PatchFailure.Reason.UnpatchableProperty("weight")
             patched.value.toString() shouldContain "Grace"
         }
 
@@ -249,7 +249,6 @@ class PatchFailureGenerationSpec :
 
             val patched = result.roundTripFixture("demo.PersonDiffer")
 
-            patched.failures.single().reason shouldContain "full"
-            patched.failures.single().reason shouldContain "only constructor properties"
+            patched.failures.single().reason shouldBe PatchFailure.Reason.NotConstructorProperty("full")
         }
     })

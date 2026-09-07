@@ -1,0 +1,58 @@
+# Deviations from detekt's default configuration, and nothing else: the build sets
+# `buildUponDefaultConfig`, so every rule not named here is active at its default.
+#
+# Each entry says why the project does not intend to follow that rule. A rule is turned off here
+# rather than suppressed at the site, so that this file is the one place a reviewer reads to see
+# what the project has opted out of.
+
+complexity:
+  # A file or class of small, single-purpose functions is what this project is aiming for — "small
+  # functions with clear names" is the stated style — so counting them punishes the goal.
+  TooManyFunctions:
+    active: false
+
+  # The two longest functions are KotlinPoet emitters that build one generated file each. Splitting
+  # them would scatter one file's shape across several functions, which is harder to review, not
+  # easier.
+  LongMethod:
+    active: false
+
+  # `patchKeyedList` and `patchPositionalList` compute a target state in a single pass, deliberately,
+  # so that no index is ever read off a list being mutated. The branch count is that decision.
+  CyclomaticComplexMethod:
+    active: false
+
+  # The runtime helpers generated code calls take the property name, the key property, both sides and
+  # the differ. That parameter list *is* the contract between the processor and the runtime.
+  LongParameterList:
+    active: false
+
+naming:
+  # Files here are named after their subject, not after whichever declaration they happen to hold
+  # alone: `Patch.kt` is the patch algorithms and `Select.kt` the scope selection. Same decision as
+  # ktlint's `standard:filename`, disabled in `.editorconfig` for the same reason.
+  MatchingDeclarationName:
+    active: false
+
+performance:
+  # KSP's `Dependencies(aggregating, vararg KSFile)` leaves no alternative to a spread, and it runs
+  # once per generated file inside the compiler.
+  SpreadOperator:
+    active: false
+
+potential-bugs:
+  # `Route.dispatch` holds a `var` set that is allocated only once a handler actually declines a
+  # change — a deliberate allocation choice on the routing path, documented where it is made.
+  DoubleMutabilityForCollection:
+    active: false
+
+style:
+  # "Early returns over nesting" is the stated style, and a limit of two returns is the opposite
+  # instruction.
+  ReturnCount:
+    active: false
+
+  # `onEach(property, key)` reads nothing from `key`: it is there so `K` is inferred from the call
+  # site. A reified type carrier is an unused parameter that cannot be removed.
+  UnusedParameter:
+    active: false

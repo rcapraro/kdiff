@@ -2,6 +2,9 @@ package io.github.kdiff.runtime
 
 import java.util.Collections
 import java.util.IdentityHashMap
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty1
 
@@ -33,11 +36,14 @@ import kotlin.reflect.KProperty1
  * reported at both `name.given` and `name.family` is one rename, not two. Changes no handler names
  * reach [ChangeRoutes.otherwise], as does a change at the root of [T], which belongs to no property.
  */
-public fun <T> Diff.route(block: ChangeRoutes<T>.() -> Unit) {
+@OptIn(ExperimentalContracts::class)
+public inline fun <T> Diff.route(block: ChangeRoutes<T>.() -> Unit) {
+    contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
     ChangeRoutes<T>().apply(block).dispatch(changes)
 }
 
-public class ChangeRoutes<T> internal constructor() {
+@KdiffDsl
+public class ChangeRoutes<T> @PublishedApi internal constructor() {
     private val handlers = linkedMapOf<String, (List<Change>) -> List<Change>>()
 
     private var fallback: ((List<Change>) -> Unit)? = null
@@ -145,6 +151,7 @@ public class ChangeRoutes<T> internal constructor() {
     }
 
     /** Dispatches [changes], returning those neither a handler nor [otherwise] accounted for. */
+    @PublishedApi
     internal fun dispatch(changes: List<Change>): List<Change> {
         // Grouped once rather than filtered once per handler; appending in change order is what gives
         // each handler its changes in the order the diff reports them, so the map's own iteration
@@ -191,6 +198,7 @@ public class ChangeRoutes<T> internal constructor() {
  * kinds is a decision. A change this routing has no *shape* for is different — it goes back to the
  * caller, which sends it to `otherwise`.
  */
+@KdiffDsl
 public open class ElementRoutes<E : Any> @PublishedApi internal constructor(private val element: KClass<E>) {
     private var added: ((E) -> Unit)? = null
     private var removed: ((E) -> Unit)? = null
@@ -228,6 +236,7 @@ public open class ElementRoutes<E : Any> @PublishedApi internal constructor(priv
 }
 
 /** The same, for a collection whose elements carry a key — which is what a move and an edit need. */
+@KdiffDsl
 public class KeyedElementRoutes<E : Any, K : Any> @PublishedApi internal constructor(
     element: KClass<E>,
     private val key: KClass<K>,

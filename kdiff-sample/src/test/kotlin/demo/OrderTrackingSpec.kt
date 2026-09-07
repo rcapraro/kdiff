@@ -1,5 +1,6 @@
 package demo
 
+import io.github.kdiff.runtime.PatchFailure
 import io.github.kdiff.runtime.TrackedField
 import io.github.kdiff.runtime.UNLIMITED_DEPTH
 import io.github.kdiff.runtime.trackScope
@@ -153,7 +154,7 @@ class OrderTrackingSpec :
                 val patched = OrderDiffer.apply(order, reported.changes)
                 patched.isClean shouldBe false
                 patched.failures.single().reason shouldBe
-                    "weight is compared by a differ that cannot patch"
+                    PatchFailure.Reason.UnpatchableProperty("weight")
             }
         }
 

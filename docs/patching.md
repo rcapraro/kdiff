@@ -50,6 +50,38 @@ Changes that can be applied *are* applied even when others fail, so `value` is a
 Each `PatchFailure` carries the `Change` it could not apply and a `reason`, and renders as
 `path: reason`.
 
+A `reason` is a case, not a sentence. `PatchFailure.Reason` is sealed and closed the way `Change` is,
+so a caller can branch on *why* a change did not apply and read off which property, key or index it
+concerned — without matching prose that may be reworded:
+
+<!-- illustrative -->
+```kotlin
+result.failures.forEach { failure ->
+    when (val reason = failure.reason) {
+        is PatchFailure.Reason.NotConstructorProperty -> audit(reason.property)
+        is PatchFailure.Reason.UnpatchableProperty -> escalate(reason.property)
+        PatchFailure.Reason.NoElementForKey -> retryLater(failure.change)
+        else -> log("$failure")
+    }
+}
+```
+
+Adding a case to that vocabulary is a breaking change, for the same reason adding a sixth `Change`
+variant would be: it breaks every exhaustive `when`.
+
+### Requiring the whole patch
+
+`apply` stays partial, because that is what lets a caller keep what applied. A caller who wants
+all-or-nothing says so at the call site:
+
+<!-- illustrative -->
+```kotlin
+val rebuilt = OrderDiffer.apply(order, changes).getOrThrow()
+```
+
+That returns the value when every change applied, and raises `PatchFailedException` — carrying every
+failure — when any did not.
+
 ## What produces a failure
 
 **A property that is not a constructor parameter.** Reconstruction goes through `copy`, so a
@@ -68,8 +100,8 @@ know. The change is reported instead, and crucially, the rest of the instance st
 
         result.value.reference shouldBe "R-2"
         result.value.weight.grams shouldBe "500"
-        result.failures.single().reason shouldContain "weight"
-        result.failures.single().reason shouldContain "cannot patch"
+        result.failures.single().reason shouldBe
+            PatchFailure.Reason.UnpatchableProperty("weight")
 ```
 
 `reference` applied; `weight` did not and was reported. See
@@ -80,9 +112,11 @@ something the type does not compare is reported, not ignored.
 
 ## The one thing `apply` refuses outright
 
-Everything above is a *change* that could not be applied, reported alongside a usable `value`. There is
-one case where there is no value to report at all, and `apply` throws `IllegalArgumentException`
-instead: a list matched by key whose elements do not carry unique keys.
+Everything above is a *change* that could not be applied, reported alongside a usable `value`. There
+are two cases where there is no value to report at all, and `apply` throws instead.
+
+**A list matched by key whose elements do not carry unique keys** — `DuplicateDiffKeyException`,
+carrying the list property, the key property and the duplicated key value.
 
 Two elements sharing a `@DiffKey` value cannot be told apart — `addresses[id=A1]` names neither of them
 in particular — so the list cannot be rebuilt without writing one out twice and dropping the other.
@@ -92,6 +126,13 @@ That is the source being uninterpretable rather than a change failing, which is 
 The comparison refuses the same list for the same reason, so the two directions agree; see
 [diffing.md](diffing.md#lists). A list nested under a property that no change addresses is never
 rebuilt, so it is carried through untouched rather than examined.
+
+**A source whose graph contains a cycle** — `CyclicStructureException`, naming the path the descent
+stopped at. Applying descends no deeper than `MAX_DESCENT` nested levels, so a cycle is reported
+rather than exhausting the stack. Comparison refuses it identically.
+
+Both are `IllegalArgumentException` subtypes, so a `catch` written before they were declared still
+catches them.
 
 ## What each kind of change does when applied
 

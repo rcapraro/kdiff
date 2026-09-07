@@ -13,7 +13,11 @@ package io.github.kdiff.runtime
  * One input is refused rather than compared. A list matched by key requires that key to identify at
  * most one element in each list; two elements sharing one leaves the comparison with no result it
  * could report, since a path names a keyed element by its key value alone. [diff] throws
- * [IllegalArgumentException] for such a list rather than silently comparing one of them.
+ * [DuplicateDiffKeyException] for such a list rather than silently comparing one of them.
+ *
+ * One structure is refused too. [diff] descends no deeper than [MAX_DESCENT] nested delegations and
+ * throws [CyclicStructureException] past that, so a cyclic graph is reported rather than exhausting
+ * the stack.
  */
 public interface Differ<T> {
     public fun diff(before: T, after: T): Diff

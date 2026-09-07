@@ -10,7 +10,7 @@ package io.github.kdiff.runtime
 /** A rebuilt property value and whatever could not be applied to it. */
 public data class Patched<T>(public val value: T, public val failures: List<PatchFailure> = emptyList())
 
-private const val NOT_CONSTRUCTOR = "only constructor properties can be reconstructed"
+internal const val NOT_CONSTRUCTOR = "only constructor properties can be reconstructed"
 
 /** Takes the new value from the last value change at this property, ignoring none of the rest. */
 public fun <T> patchValue(source: T, changes: List<Change>): Patched<T> {
@@ -31,7 +31,7 @@ public fun <T> patchValue(source: T, changes: List<Change>): Patched<T> {
                 value = change.after as T
             }
 
-            else -> failures += PatchFailure(change, "not applicable to a value property")
+            else -> failures += PatchFailure(change, PatchFailure.Reason.NotApplicableToValue)
         }
     }
 
@@ -48,9 +48,20 @@ public fun <T> patchValue(source: T, changes: List<Change>): Patched<T> {
 public fun <T> patchNested(source: T, changes: List<Change>, patcher: Patcher<T>): Patched<T> {
     if (changes.isEmpty()) return Patched(source)
 
-    val result = patcher.apply(source, changes)
-    return Patched(result.value, result.failures)
+    return Descent.into(NESTED, source) {
+        val result = patcher.apply(source, changes)
+        Patched(result.value, result.failures)
+    }
 }
+
+/**
+ * The step a patch descent records.
+ *
+ * Applying works through changes whose paths have already had the property segment stripped, so the
+ * helper no longer knows the property name it is rebuilding. The path a refusal reports therefore
+ * counts the levels rather than naming them, which is enough to say how deep the structure went.
+ */
+private val NESTED = Segment.Field("<nested>")
 
 /**
  * Rebuilds a nullable nested value.
@@ -68,27 +79,29 @@ public fun <T : Any> patchNestedNullable(source: T?, changes: List<Change>, patc
     }
 
     if (source == null) {
-        return Patched(null, changes.map { PatchFailure(it, "nothing to patch beneath a null property") })
+        return Patched(null, changes.map { PatchFailure(it, PatchFailure.Reason.NothingBeneathNull) })
     }
 
-    val result = patcher.apply(source, changes)
-    return Patched(result.value, result.failures)
+    return Descent.into(NESTED, source) {
+        val result = patcher.apply(source, changes)
+        Patched(result.value, result.failures)
+    }
 }
 
 /** Reports every change beneath a property whose differ cannot patch (design D7). */
 public fun <T> unpatchable(source: T, changes: List<Change>, property: String): Patched<T> =
-    Patched(source, changes.map { PatchFailure(it, "$property is compared by a differ that cannot patch") })
+    Patched(source, changes.map { PatchFailure(it, PatchFailure.Reason.UnpatchableProperty(property)) })
 
 /** Reports every change targeting a property that is not a constructor parameter. */
 public fun <T> notConstructorProperty(source: T, changes: List<Change>, property: String): Patched<T> =
-    Patched(source, changes.map { PatchFailure(it, "$property: $NOT_CONSTRUCTOR") })
+    Patched(source, changes.map { PatchFailure(it, PatchFailure.Reason.NotConstructorProperty(property)) })
 
 /**
  * Rebuilds a keyed list by computing its target state rather than replaying operations, so that no
  * index is read off a list that is being mutated (design D5).
  *
- * A key identifies at most one element in [source]. Two elements sharing one is an
- * [IllegalArgumentException], raised whatever [changes] holds and an empty list included: such a list
+ * A key identifies at most one element in [source]. Two elements sharing one is a
+ * [DuplicateDiffKeyException], raised whatever [changes] holds and an empty list included: such a list
  * cannot be rebuilt on its own terms, because the map this works through holds one entry per key while
  * the source holds two elements, so one would be written out twice and the other lost.
  *
@@ -130,7 +143,7 @@ public fun <T> patchKeyedList(
     changes.forEach { change ->
         val key = (change.path.segments.firstOrNull() as? Segment.Key)?.value
         if (key == null) {
-            failures += PatchFailure(change, "not applicable to a keyed list")
+            failures += PatchFailure(change, PatchFailure.Reason.NotApplicableToKeyedList)
             return@forEach
         }
         val rest = change.withoutFirstSegment()
@@ -153,10 +166,10 @@ public fun <T> patchKeyedList(
     elementChanges.forEach { (key, elementChange) ->
         val element = byKey[key]
         if (element == null) {
-            failures += elementChange.map { PatchFailure(it, "no element with this key to patch") }
+            failures += elementChange.map { PatchFailure(it, PatchFailure.Reason.NoElementForKey) }
             return@forEach
         }
-        val result = patcher.apply(element, elementChange)
+        val result = Descent.into(NESTED, element) { patcher.apply(element, elementChange) }
         byKey[key] = result.value
         failures += result.failures
     }
@@ -192,7 +205,7 @@ public fun <T> patchPositionalList(source: List<T>, changes: List<Change>, patch
     changes.forEach { change ->
         val index = (change.path.segments.firstOrNull() as? Segment.Index)?.index
         if (index == null) {
-            failures += PatchFailure(change, "not applicable to a positional list")
+            failures += PatchFailure(change, PatchFailure.Reason.NotApplicableToPositionalList)
             return@forEach
         }
         val rest = change.withoutFirstSegment()
@@ -210,7 +223,7 @@ public fun <T> patchPositionalList(source: List<T>, changes: List<Change>, patch
 
     elementChanges.forEach { (index, elementChange) ->
         if (index !in elements.indices) {
-            failures += elementChange.map { PatchFailure(it, "no element at this index to patch") }
+            failures += elementChange.map { PatchFailure(it, PatchFailure.Reason.NoElementAtIndex) }
             return@forEach
         }
         if (patcher == null) {
@@ -219,11 +232,12 @@ public fun <T> patchPositionalList(source: List<T>, changes: List<Change>, patch
                 @Suppress("UNCHECKED_CAST")
                 elements[index] = value.after as T
             } else {
-                failures += elementChange.map { PatchFailure(it, "element is compared as a value") }
+                failures += elementChange.map { PatchFailure(it, PatchFailure.Reason.ElementComparedAsValue) }
             }
             return@forEach
         }
-        val result = patcher.apply(elements[index], elementChange)
+        val element = elements[index]
+        val result = Descent.into(NESTED, element) { patcher.apply(element, elementChange) }
         elements[index] = result.value
         failures += result.failures
     }
@@ -250,7 +264,7 @@ public fun <T> patchSet(source: Set<T>, changes: List<Change>): Patched<Set<T>> 
                 elements += change.value as T
             }
 
-            else -> failures += PatchFailure(change, "a set element cannot be modified in place")
+            else -> failures += PatchFailure(change, PatchFailure.Reason.SetElementNotModifiable)
         }
     }
 
@@ -268,7 +282,7 @@ public fun <K, V> patchMap(source: Map<K, V>, changes: List<Change>, patcher: Pa
     changes.forEach { change ->
         val segment = change.path.segments.firstOrNull() as? Segment.Key
         if (segment == null) {
-            failures += PatchFailure(change, "not applicable to a map")
+            failures += PatchFailure(change, PatchFailure.Reason.NotApplicableToMap)
             return@forEach
         }
 
@@ -290,7 +304,7 @@ public fun <K, V> patchMap(source: Map<K, V>, changes: List<Change>, patcher: Pa
     entryChanges.forEach { (key, entryChange) ->
         val value = entries[key]
         if (value == null) {
-            failures += entryChange.map { PatchFailure(it, "no entry with this key to patch") }
+            failures += entryChange.map { PatchFailure(it, PatchFailure.Reason.NoEntryForKey) }
             return@forEach
         }
         if (patcher == null) {
@@ -299,11 +313,11 @@ public fun <K, V> patchMap(source: Map<K, V>, changes: List<Change>, patcher: Pa
                 @Suppress("UNCHECKED_CAST")
                 entries[key] = replacement.after as V
             } else {
-                failures += entryChange.map { PatchFailure(it, "entry value is compared as a value") }
+                failures += entryChange.map { PatchFailure(it, PatchFailure.Reason.EntryComparedAsValue) }
             }
             return@forEach
         }
-        val result = patcher.apply(value, entryChange)
+        val result = Descent.into(NESTED, value) { patcher.apply(value, entryChange) }
         entries[key] = result.value
         failures += result.failures
     }

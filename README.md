@@ -90,7 +90,9 @@ dependencies {
 The processor goes on the `ksp` configuration, never `implementation`. That is what keeps it off your
 runtime classpath — it runs inside the compiler and has no business being shipped.
 
-Requires JDK 17 or later; the library is built against a JVM 21 toolchain.
+Requires JDK 21 or later, and a JVM target of 21: the library is built against a JVM 21 toolchain, and
+its builder entry points are `inline` so they can state that they run your block exactly once — which
+Kotlin will not inline into a module compiling for an older target.
 
 ## Quickstart
 
@@ -126,6 +128,7 @@ val result = AddressDiffer.apply(before, diff.changes)
 
 result.value      // Address(id=A1, street=1 Rue X, city=Nice)
 result.isClean    // true — every change applied
+result.getOrThrow()  // or the value outright, raising if anything failed
 ```
 
 A tracker fires a lambda as a value evolves, holding the last instance it saw and comparing the next

@@ -26,13 +26,62 @@ sequence as the properties they came from.
 ```kotlin
 val diff = OrderDiffer.diff(before, after)
 
-diff.isEmpty          // true when the two compared equivalent
+diff.isEmpty()        // true when the two compared equivalent
+diff.isNotEmpty()     // and its opposite
+diff.size             // how many changes were found
 diff.changes          // List<Change>, in declaration order
 diff.render()         // human-readable text, one line per change
 diff.tree()           // the same changes as a DiffNode hierarchy
 ```
 
+`Diff` is itself an `Iterable<Change>`, so the standard library's operators apply to it without
+reaching for `changes` first:
+
+<!-- illustrative -->
+```kotlin
+diff.filter { it is Removed }
+diff.groupBy { it.path.rootName() }
+diff.joinToString("\n")
+```
+
+It is `Iterable` rather than `List` on purpose: a `Diff` equals only another `Diff`, so advertising
+list-ness while equalling no list would mislead, and `subList`, `indexOf` and `listIterator` are
+surface nobody asked for.
+
+Two diffs combine with `+`, which concatenates rather than reconciles — two changes at one path are
+both kept, because nothing here can decide what they mean together. `Diff.EMPTY` is the diff that
+found nothing, and `Diff(a, b)` builds one from changes you already hold.
+
 `Diff` is a value — two results built from the same changes are equal.
+
+### Narrowing to one property
+
+A diff narrows by property *reference*, so no string is matched and renaming the property reaches the
+call site:
+
+<!-- illustrative -->
+```kotlin
+diff.at(Order::billing)      // the billing property itself changed
+diff.under(Order::billing)   // billing, or anything inside it, changed
+```
+
+`at` is the property's own change; `under` is that plus everything beneath it. Both return a `Diff`,
+so they compose with each other and with `+`.
+
+**Name the type to have the property checked against it.** A `Diff` carries no type argument, so the
+type parameter is inferred from the property alone — which means a property of an unrelated type
+compiles and quietly matches nothing:
+
+<!-- illustrative -->
+```kotlin
+orderDiff.at<Order>(Order::billing)     // checked
+orderDiff.at<Order>(Address::street)    // does not compile
+orderDiff.at(Address::street)           // compiles, and matches nothing
+```
+
+Routing has no such hole: `route<Order> { }` fixes the type at the call site, so every property named
+inside it is checked. Prefer routing when you are dispatching on several properties; narrowing is for
+picking one out.
 
 ## The change vocabulary is closed
 
@@ -253,7 +302,7 @@ much it differs:
 <!-- from: kdiff-sample/src/test/kotlin/demo/OrderDiffSpec.kt -->
 ```kotlin
     test("an ignored property never reports, however much it differs") {
-        diff(order.copy(lastTouched = "friday")).isEmpty shouldBe true
+        diff(order.copy(lastTouched = "friday")).isEmpty() shouldBe true
     }
 ```
 

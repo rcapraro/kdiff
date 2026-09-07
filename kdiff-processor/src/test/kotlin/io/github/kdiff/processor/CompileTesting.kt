@@ -23,6 +23,10 @@ internal fun compile(vararg sources: SourceFile): JvmCompilationResult = KotlinC
     }
     inheritClassPath = true
     messageOutputStream = System.out
+    // Matches the toolchain the runtime is built with. kdiff's DSL entry points are `inline`, so that
+    // they can state `callsInPlace`, and inlining refuses to mix bytecode targets — a snippet left at
+    // kctfork's 1.8 default fails on every `differ { }` in these tests.
+    jvmTarget = "21"
 }.compile()
 
 internal val JvmCompilationResult.generatedFileNames: List<String>

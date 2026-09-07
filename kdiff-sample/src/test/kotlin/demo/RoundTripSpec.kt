@@ -1,5 +1,6 @@
 package demo
 
+import io.github.kdiff.runtime.PatchFailure
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -159,8 +160,8 @@ class PatchContractSpec :
 
             result.value.reference shouldBe "R-2"
             result.value.weight.grams shouldBe "500"
-            result.failures.single().reason shouldContain "weight"
-            result.failures.single().reason shouldContain "cannot patch"
+            result.failures.single().reason shouldBe
+                PatchFailure.Reason.UnpatchableProperty("weight")
         }
 
         test("a change whose path names no compared property is reported") {
@@ -173,7 +174,8 @@ class PatchContractSpec :
             val result = OrderDiffer.apply(order, listOf(stray))
 
             result.failures.single().change shouldBe stray
-            result.failures.single().reason shouldContain "no compared property"
+            result.failures.single().reason shouldBe
+                PatchFailure.Reason.UnknownProperty("Order")
             result.value shouldBe order
         }
 

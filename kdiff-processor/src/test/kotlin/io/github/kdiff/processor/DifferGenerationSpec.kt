@@ -69,7 +69,7 @@ class DifferGenerationSpec :
             result.exitCode shouldBe KotlinCompilation.ExitCode.OK
             result.generatedFileNames shouldContainExactlyInAnyOrder listOf("PersonDiff.kt", "AddressDiff.kt")
 
-            result.runDiffer("demo.Person", listOf("1", "Ada"), listOf("1", "Ada")).isEmpty shouldBe true
+            result.runDiffer("demo.Person", listOf("1", "Ada"), listOf("1", "Ada")).isEmpty() shouldBe true
             result.runDiffer("demo.Address", listOf("Rue X", "Paris"), listOf("Rue Y", "Lyon"))
                 .changes.map { it.path.toString() } shouldContainExactly listOf("street", "city")
         }

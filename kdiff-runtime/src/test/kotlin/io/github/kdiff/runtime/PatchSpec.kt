@@ -62,12 +62,13 @@ class GroupingSpec :
             val grouped = groupByProperty(listOf(change), setOf("name"))
 
             grouped.unmatched shouldContainExactly listOf(change)
-            grouped.unmatchedFailures("Person").single().reason shouldContain "no compared property"
+            grouped.unmatchedFailures("Person").single().reason shouldBe PatchFailure.Reason.UnknownProperty("Person")
         }
 
         test("a result with no failures reports itself clean") {
             PatchResult("x").isClean shouldBe true
-            PatchResult("x", listOf(PatchFailure(ValueChanged(at(), 1, 2), "why"))).isClean shouldBe false
+            val failure = PatchFailure(ValueChanged(at(), 1, 2), PatchFailure.Reason.NotApplicableToValue)
+            PatchResult("x", listOf(failure)).isClean shouldBe false
         }
     })
 
@@ -308,15 +309,15 @@ class PatchFailureReasonSpec :
         test("an unpatchable property names itself and says its differ cannot patch") {
             val failure = unpatchable("x", listOf(ValueChanged(at(), 1, 2)), "total").failures.single()
 
-            failure.reason shouldContain "total"
-            failure.reason shouldContain "cannot patch"
+            failure.reason shouldBe PatchFailure.Reason.UnpatchableProperty("total")
+            failure.toString() shouldContain "cannot patch"
         }
 
         test("a non-constructor property says why it cannot be reconstructed") {
             val failure = notConstructorProperty("x", listOf(ValueChanged(at(), 1, 2)), "derived")
                 .failures.single()
 
-            failure.reason shouldContain "derived"
-            failure.reason shouldContain "only constructor properties"
+            failure.reason shouldBe PatchFailure.Reason.NotConstructorProperty("derived")
+            failure.toString() shouldContain "only constructor properties"
         }
     })
