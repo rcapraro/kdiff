@@ -11,6 +11,8 @@ entry written for someone deciding whether to upgrade.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-07
+
 ### Changed
 
 - The runtime's three hot paths — comparison, application and tracking — allocate substantially less
@@ -120,7 +122,8 @@ First release.
 
 - JDK 17 or later; built against a JVM 21 toolchain, Kotlin 2.4.10 and KSP 2.3.11.
 
-[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/rcapraro/kdiff/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/rcapraro/kdiff/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rcapraro/kdiff/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rcapraro/kdiff/releases/tag/v0.1.0

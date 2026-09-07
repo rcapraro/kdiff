@@ -81,9 +81,9 @@ plugins {
 }
 
 dependencies {
-    implementation("io.github.kdiff:kdiff-annotations:0.3.0")
-    implementation("io.github.kdiff:kdiff-runtime:0.3.0")
-    ksp("io.github.kdiff:kdiff-processor:0.3.0")
+    implementation("io.github.kdiff:kdiff-annotations:0.3.1")
+    implementation("io.github.kdiff:kdiff-runtime:0.3.1")
+    ksp("io.github.kdiff:kdiff-processor:0.3.1")
 }
 ```
 
