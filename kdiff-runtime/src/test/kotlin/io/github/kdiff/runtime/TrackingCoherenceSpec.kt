@@ -74,117 +74,118 @@ private object ContactDiffer : Differ<Contact>, Patcher<Contact> {
     }
 }
 
-class TrackingCoherenceSpec : FunSpec({
+class TrackingCoherenceSpec :
+    FunSpec({
 
-    context("a scope written by hand for a type that cannot be annotated") {
-        test("it tracks the properties it names") {
-            val tracker = tracker(PriceDiffer, Price("10", "EUR"), trackScope { field(Price::amount) })
+        context("a scope written by hand for a type that cannot be annotated") {
+            test("it tracks the properties it names") {
+                val tracker = tracker(PriceDiffer, Price("10", "EUR"), trackScope { field(Price::amount) })
 
-            val diff = tracker.update(Price("12", "USD"))
+                val diff = tracker.update(Price("12", "USD"))
 
-            diff.paths() shouldContainExactly listOf("amount")
-        }
-
-        test("a type carrying no kdiff annotation is both compared and tracked") {
-            val seen = mutableListOf<String>()
-            val tracker = tracker(PriceDiffer, Price("10", "EUR")) {
-                under(Price::currency)
-                onFieldChange { path, _, _ -> seen += path.toString() }
+                diff.paths() shouldContainExactly listOf("amount")
             }
 
-            tracker.update(Price("12", "GBP"))
+            test("a type carrying no kdiff annotation is both compared and tracked") {
+                val seen = mutableListOf<String>()
+                val tracker = tracker(PriceDiffer, Price("10", "EUR")) {
+                    under(Price::currency)
+                    onFieldChange { path, _, _ -> seen += path.toString() }
+                }
 
-            seen shouldContainExactly listOf("currency")
-        }
+                tracker.update(Price("12", "GBP"))
 
-        test("a hand-written scope is indistinguishable from a declared one") {
-            val fields = arrayOf(TrackedField("reference", 1), TrackedField("billing", 2))
-            val declared = TrackedOrderDiffer(trackScopeOf(*fields))
-            val byHand = trackScope<Order> {
-                field(Order::reference)
-                field(Order::billing, depth = 2)
+                seen shouldContainExactly listOf("currency")
             }
-            val next = ORDER.copy(
-                reference = "R2",
-                status = "CLOSED",
-                billing = ADDR_1.copy(city = "Nice", country = Country("BE")),
-            )
 
-            val fromDeclared = tracker(declared, ORDER).update(next)
-            val fromHand = tracker(OrderDiffer, ORDER, byHand).update(next)
+            test("a hand-written scope is indistinguishable from a declared one") {
+                val fields = arrayOf(TrackedField("reference", 1), TrackedField("billing", 2))
+                val declared = TrackedOrderDiffer(trackScopeOf(*fields))
+                val byHand = trackScope<Order> {
+                    field(Order::reference)
+                    field(Order::billing, depth = 2)
+                }
+                val next = ORDER.copy(
+                    reference = "R2",
+                    status = "CLOSED",
+                    billing = ADDR_1.copy(city = "Nice", country = Country("BE")),
+                )
 
-            fromHand.changes shouldContainExactly fromDeclared.changes
-            fromHand.paths() shouldContainExactly listOf("reference", "billing.city")
-        }
-    }
+                val fromDeclared = tracker(declared, ORDER).update(next)
+                val fromHand = tracker(OrderDiffer, ORDER, byHand).update(next)
 
-    context("a property compared by a hand-written differ") {
-        val invoice = Invoice("I1", Price("10", "EUR"), Weight("500"))
-
-        test("a change inside a delegated property is tracked by its path") {
-            val tracker = tracker(InvoiceDiffer, invoice) { under(Invoice::total) }
-
-            val diff = tracker.update(invoice.copy(total = Price("12", "EUR")))
-
-            diff.paths() shouldContainExactly listOf("total.amount")
+                fromHand.changes shouldContainExactly fromDeclared.changes
+                fromHand.paths() shouldContainExactly listOf("reference", "billing.city")
+            }
         }
 
-        test("a delegated property obeys depth like any nested property") {
-            val tracker = tracker(InvoiceDiffer, invoice) { depth = 1 }
+        context("a property compared by a hand-written differ") {
+            val invoice = Invoice("I1", Price("10", "EUR"), Weight("500"))
 
-            val diff = tracker.update(invoice.copy(total = Price("12", "EUR")))
+            test("a change inside a delegated property is tracked by its path") {
+                val tracker = tracker(InvoiceDiffer, invoice) { under(Invoice::total) }
 
-            diff.changes shouldBe emptyList()
+                val diff = tracker.update(invoice.copy(total = Price("12", "EUR")))
+
+                diff.paths() shouldContainExactly listOf("total.amount")
+            }
+
+            test("a delegated property obeys depth like any nested property") {
+                val tracker = tracker(InvoiceDiffer, invoice) { depth = 1 }
+
+                val diff = tracker.update(invoice.copy(total = Price("12", "EUR")))
+
+                diff.changes shouldBe emptyList()
+            }
+
+            test("a compare-only delegated differ is unpatchable yet still trackable") {
+                val next = invoice.copy(weight = Weight("600"))
+                val tracker = tracker(InvoiceDiffer, invoice) { under(Invoice::weight) }
+
+                val diff = tracker.update(next)
+
+                diff.paths() shouldContainExactly listOf("weight.grams")
+
+                val patched = InvoiceDiffer.apply(invoice, diff.changes)
+                patched.isClean shouldBe false
+                patched.failures.single().reason shouldBe "weight is compared by a differ that cannot patch"
+            }
         }
 
-        test("a compare-only delegated differ is unpatchable yet still trackable") {
-            val next = invoice.copy(weight = Weight("600"))
-            val tracker = tracker(InvoiceDiffer, invoice) { under(Invoice::weight) }
+        context("a tracker's report can be applied to its baseline") {
+            val ada = Contact("Ada", "ada@example.com")
+            val grace = Contact("Grace", "grace@example.com")
 
-            val diff = tracker.update(next)
+            test("an unrestricted tracker's report reproduces the target") {
+                val tracker = tracker(ContactDiffer, ada)
 
-            diff.paths() shouldContainExactly listOf("weight.grams")
+                val diff = tracker.update(grace)
+                val patched = ContactDiffer.apply(ada, diff.changes)
 
-            val patched = InvoiceDiffer.apply(invoice, diff.changes)
-            patched.isClean shouldBe false
-            patched.failures.single().reason shouldBe "weight is compared by a differ that cannot patch"
+                patched.value shouldBe grace
+                patched.isClean shouldBe true
+            }
+
+            test("a narrowed tracker's report propagates only the tracked property") {
+                val tracker = tracker(ContactDiffer, ada) { field(Contact::name) }
+
+                val diff = tracker.update(grace)
+                val patched = ContactDiffer.apply(ada, diff.changes)
+
+                patched.value shouldBe ada.copy(name = grace.name)
+                patched.value.email shouldBe ada.email
+                patched.isClean shouldBe true
+            }
+
+            test("an empty report applies cleanly") {
+                val tracker = tracker(ContactDiffer, ada) { field(Contact::name) }
+
+                val diff = tracker.update(ada.copy(email = "other@example.com"))
+                val patched = ContactDiffer.apply(ada, diff.changes)
+
+                diff.changes shouldBe emptyList()
+                patched.value shouldBe ada
+                patched.isClean shouldBe true
+            }
         }
-    }
-
-    context("a tracker's report can be applied to its baseline") {
-        val ada = Contact("Ada", "ada@example.com")
-        val grace = Contact("Grace", "grace@example.com")
-
-        test("an unrestricted tracker's report reproduces the target") {
-            val tracker = tracker(ContactDiffer, ada)
-
-            val diff = tracker.update(grace)
-            val patched = ContactDiffer.apply(ada, diff.changes)
-
-            patched.value shouldBe grace
-            patched.isClean shouldBe true
-        }
-
-        test("a narrowed tracker's report propagates only the tracked property") {
-            val tracker = tracker(ContactDiffer, ada) { field(Contact::name) }
-
-            val diff = tracker.update(grace)
-            val patched = ContactDiffer.apply(ada, diff.changes)
-
-            patched.value shouldBe ada.copy(name = grace.name)
-            patched.value.email shouldBe ada.email
-            patched.isClean shouldBe true
-        }
-
-        test("an empty report applies cleanly") {
-            val tracker = tracker(ContactDiffer, ada) { field(Contact::name) }
-
-            val diff = tracker.update(ada.copy(email = "other@example.com"))
-            val patched = ContactDiffer.apply(ada, diff.changes)
-
-            diff.changes shouldBe emptyList()
-            patched.value shouldBe ada
-            patched.isClean shouldBe true
-        }
-    }
-})
+    })

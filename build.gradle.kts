@@ -1,15 +1,28 @@
 plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.ksp) apply false
+    alias(libs.plugins.ktlint) apply false
 }
 
 val publishedModules = setOf("kdiff-annotations", "kdiff-runtime", "kdiff-processor")
 
+// Read here rather than inside `subprojects`: the type-safe catalog accessors exist only in the
+// root project's own script scope.
+val ktlintToolVersion = libs.versions.ktlintTool.get()
+
 subprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
+    apply(plugin = "org.jlleitschuh.gradle.ktlint")
 
     group = "io.github.kdiff"
     version = "0.3.1"
+
+    extensions.configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
+        version.set(ktlintToolVersion)
+        // KotlinPoet's output is not a contributor's to format, and holding it to a
+        // contributor's rules would fail a gate nobody can act on.
+        filter { exclude { it.file.path.contains("${File.separator}generated${File.separator}") } }
+    }
 
     extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
         jvmToolchain(21)

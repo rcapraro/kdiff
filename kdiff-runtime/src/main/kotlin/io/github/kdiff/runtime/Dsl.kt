@@ -21,8 +21,7 @@ import kotlin.reflect.KProperty1
  *
  * Property references are stdlib: reading `name` and calling `get` needs no `kotlin-reflect`.
  */
-public fun <T> differ(block: DifferBuilder<T>.() -> Unit): Differ<T> =
-    DifferBuilder<T>().apply(block).build()
+public fun <T> differ(block: DifferBuilder<T>.() -> Unit): Differ<T> = DifferBuilder<T>().apply(block).build()
 
 public class DifferBuilder<T> internal constructor() {
     private val comparisons = mutableListOf<(MutableList<Change>, T, T) -> Unit>()

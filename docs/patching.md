@@ -38,10 +38,7 @@ unkeyed lists that changed length, sets, maps, and sealed subclass changes.
 
 <!-- from: kdiff-runtime/src/main/kotlin/io/github/kdiff/runtime/Patcher.kt -->
 ```kotlin
-public data class PatchResult<T>(
-    public val value: T,
-    public val failures: List<PatchFailure> = emptyList(),
-) {
+public data class PatchResult<T>(public val value: T, public val failures: List<PatchFailure> = emptyList()) {
     public val isClean: Boolean
         get() = failures.isEmpty()
 }

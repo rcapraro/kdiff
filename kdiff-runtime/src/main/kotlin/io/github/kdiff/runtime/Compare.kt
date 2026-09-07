@@ -1,6 +1,6 @@
 package io.github.kdiff.runtime
 
-/**
+/*
  * The helpers generated differs call, one per compared property.
  *
  * They live here rather than being generated so that the comparison algorithms exist once, where a
@@ -13,12 +13,7 @@ public fun MutableList<Change>.compareValue(name: String, before: Any?, after: A
 }
 
 /** Compares a non-null nested property by delegating to [differ] and lifting its paths under [name]. */
-public fun <T> MutableList<Change>.compareNested(
-    name: String,
-    before: T,
-    after: T,
-    differ: Differ<T>,
-) {
+public fun <T> MutableList<Change>.compareNested(name: String, before: T, after: T, differ: Differ<T>) {
     val field = Segment.Field(name)
     differ.diff(before, after).changes.forEach { add(it.prefixedWith(field)) }
 }

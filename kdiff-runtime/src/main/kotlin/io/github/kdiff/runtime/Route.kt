@@ -191,9 +191,7 @@ public class ChangeRoutes<T> internal constructor() {
  * kinds is a decision. A change this routing has no *shape* for is different — it goes back to the
  * caller, which sends it to `otherwise`.
  */
-public open class ElementRoutes<E : Any> @PublishedApi internal constructor(
-    private val element: KClass<E>,
-) {
+public open class ElementRoutes<E : Any> @PublishedApi internal constructor(private val element: KClass<E>) {
     private var added: ((E) -> Unit)? = null
     private var removed: ((E) -> Unit)? = null
 
@@ -270,8 +268,7 @@ public class KeyedElementRoutes<E : Any, K : Any> @PublishedApi internal constru
         return unroutable
     }
 
-    private fun keyOf(change: Change): K? =
-        key.safeCast((change.path.segments.getOrNull(1) as? Segment.Key)?.value)
+    private fun keyOf(change: Change): K? = key.safeCast((change.path.segments.getOrNull(1) as? Segment.Key)?.value)
 }
 
 /**

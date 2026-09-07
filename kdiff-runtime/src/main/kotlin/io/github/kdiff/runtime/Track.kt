@@ -77,11 +77,8 @@ public class Tracker<T> internal constructor(
  * }
  * ```
  */
-public fun <T> tracker(
-    differ: Differ<T>,
-    initial: T,
-    block: TrackerBuilder<T>.() -> Unit = {},
-): Tracker<T> = TrackerBuilder<T>().apply(block).build(differ, initial)
+public fun <T> tracker(differ: Differ<T>, initial: T, block: TrackerBuilder<T>.() -> Unit = {}): Tracker<T> =
+    TrackerBuilder<T>().apply(block).build(differ, initial)
 
 /**
  * Builds a [Tracker] over [initial] from a scope prepared elsewhere, whether by `trackScope { }` or

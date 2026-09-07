@@ -49,12 +49,7 @@ data class Phone(val country: String, val number: String)
 
 /** `@DiffIgnore` on the key for the reason the builder names no key either: matched elements share it. */
 @Diffable
-data class Address(
-    @DiffKey @DiffIgnore val id: AddressId,
-    val line1: String,
-    val city: String,
-    val country: String,
-)
+data class Address(@DiffKey @DiffIgnore val id: AddressId, val line1: String, val city: String, val country: String)
 
 @Diffable
 sealed interface Employment

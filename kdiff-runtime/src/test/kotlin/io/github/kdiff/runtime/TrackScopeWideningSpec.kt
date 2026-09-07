@@ -12,37 +12,38 @@ import io.kotest.matchers.shouldBe
  * proves the rule is the right shape, and would still catch a widening if the oracle itself were
  * wrong.
  */
-class TrackScopeWideningSpec : FunSpec({
+class TrackScopeWideningSpec :
+    FunSpec({
 
-    test("a scope that names properties never selects a change rooted at another property") {
-        val leaks = scopesNamingProperties().flatMap { scope ->
-            pathsRootedOutside(scope.named).filter { path ->
-                scope.resolved.selects(ValueChanged(path, "before", "after"))
-            }.map { "scope=${scope.named} selected [$it]" }
+        test("a scope that names properties never selects a change rooted at another property") {
+            val leaks = scopesNamingProperties().flatMap { scope ->
+                pathsRootedOutside(scope.named).filter { path ->
+                    scope.resolved.selects(ValueChanged(path, "before", "after"))
+                }.map { "scope=${scope.named} selected [$it]" }
+            }
+
+            leaks shouldBe emptyList()
         }
 
-        leaks shouldBe emptyList()
-    }
+        test("an excluded property is never selected, at any depth and under any scope") {
+            val leaks = scopesExcluding(EXCLUDED).flatMap { resolved ->
+                pathsRootedAt(EXCLUDED).filter { path ->
+                    resolved.selects(ValueChanged(path, "before", "after"))
+                }.map { "excluded scope selected [$it]" }
+            }
 
-    test("an excluded property is never selected, at any depth and under any scope") {
-        val leaks = scopesExcluding(EXCLUDED).flatMap { resolved ->
-            pathsRootedAt(EXCLUDED).filter { path ->
-                resolved.selects(ValueChanged(path, "before", "after"))
-            }.map { "excluded scope selected [$it]" }
+            leaks shouldBe emptyList()
         }
 
-        leaks shouldBe emptyList()
-    }
+        // The one change that belongs to no property, so no selector could name it: withholding it would
+        // hide an object being replaced wholesale.
+        test("a change at the tracked object itself is selected however narrow the scope") {
+            val missed = scopesNamingProperties()
+                .filterNot { it.resolved.selects(ValueChanged(FieldPath.ROOT, "before", "after")) }
 
-    // The one change that belongs to no property, so no selector could name it: withholding it would
-    // hide an object being replaced wholesale.
-    test("a change at the tracked object itself is selected however narrow the scope") {
-        val missed = scopesNamingProperties()
-            .filterNot { it.resolved.selects(ValueChanged(FieldPath.ROOT, "before", "after")) }
-
-        missed.size shouldBe 0
-    }
-})
+            missed.size shouldBe 0
+        }
+    })
 
 private const val TRACKED = "tracked"
 private const val OTHER = "other"
@@ -97,7 +98,6 @@ private val tails = listOf(
 private fun pathsRootedAt(property: String): List<FieldPath> =
     tails.map { FieldPath(listOf(Segment.Field(property)) + it) }
 
-private fun pathsRootedOutside(named: Set<String>): List<FieldPath> =
-    listOf(TRACKED, OTHER, "neverNamed")
-        .filterNot { it in named }
-        .flatMap(::pathsRootedAt)
+private fun pathsRootedOutside(named: Set<String>): List<FieldPath> = listOf(TRACKED, OTHER, "neverNamed")
+    .filterNot { it in named }
+    .flatMap(::pathsRootedAt)

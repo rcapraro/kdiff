@@ -91,5 +91,4 @@ public interface Tracked<T> {
  * It is not the same as `trackScope { }`, which names none because the caller wants them all; see
  * [TrackScope.trackedFields].
  */
-public fun <T> trackScopeOf(vararg fields: TrackedField): TrackScope<T> =
-    TrackScope(fields.toList(), depth = null)
+public fun <T> trackScopeOf(vararg fields: TrackedField): TrackScope<T> = TrackScope(fields.toList(), depth = null)

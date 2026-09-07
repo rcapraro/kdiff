@@ -15,36 +15,33 @@ import io.kotest.matchers.shouldBe
  * Scopes are built through `resolveAgainst`, the production construction path, so this spec does not
  * name `ResolvedScope`'s constructors and does not have to change when they do.
  */
-class ResolvedScopeEquivalenceSpec : FunSpec({
+class ResolvedScopeEquivalenceSpec :
+    FunSpec({
 
-    test("the live rule agrees with the reference rule over the whole enumerated domain") {
-        val disagreements = enumerate { scope, change ->
-            live(scope).selects(change) != reference(scope, change)
+        test("the live rule agrees with the reference rule over the whole enumerated domain") {
+            val disagreements = enumerate { scope, change ->
+                live(scope).selects(change) != reference(scope, change)
+            }
+
+            disagreements.take(5) shouldBe emptyList()
+            disagreements.size shouldBe 0
         }
 
-        disagreements.take(5) shouldBe emptyList()
-        disagreements.size shouldBe 0
-    }
+        // Without this the spec above could pass by comparing two copies of the same mistake, or by
+        // enumerating a domain that never reaches the interesting branches.
+        test("a one-character mutation of the rule is caught, and the case is named") {
+            val disagreements = enumerate { scope, change ->
+                live(scope).selects(change) != mutatedReference(scope, change)
+            }
 
-    // Without this the spec above could pass by comparing two copies of the same mistake, or by
-    // enumerating a domain that never reaches the interesting branches.
-    test("a one-character mutation of the rule is caught, and the case is named") {
-        val disagreements = enumerate { scope, change ->
-            live(scope).selects(change) != mutatedReference(scope, change)
+            disagreements.shouldNotBeEmptyAnd { first ->
+                first shouldContainAll listOf("scope=", "path=")
+            }
         }
-
-        disagreements.shouldNotBeEmptyAnd { first ->
-            first shouldContainAll listOf("scope=", "path=")
-        }
-    }
-})
+    })
 
 /** A scope's three inputs, carried together so a disagreement can name the case that produced it. */
-private data class Case(
-    val fields: List<TrackedField>?,
-    val depth: Int?,
-    val excluded: Set<String>,
-)
+private data class Case(val fields: List<TrackedField>?, val depth: Int?, val excluded: Set<String>)
 
 private val untracked = object : Differ<Any> {
     override fun diff(before: Any, after: Any): Diff = Diff(emptyList())
@@ -108,7 +105,9 @@ private val depths = listOf(1, 2, 3, UNLIMITED_DEPTH)
 private fun namings(name: String): List<List<TrackedField>> = buildList {
     add(emptyList())
     depths.forEach { add(listOf(TrackedField(name, it))) }
-    depths.forEach { first -> depths.forEach { second -> add(listOf(TrackedField(name, first), TrackedField(name, second))) } }
+    depths.forEach { first ->
+        depths.forEach { second -> add(listOf(TrackedField(name, first), TrackedField(name, second))) }
+    }
 }
 
 private val fieldLists: List<List<TrackedField>?> = buildList {

@@ -20,11 +20,8 @@ public sealed interface Change {
 }
 
 /** A property or element compared unequal, holding both sides. */
-public data class ValueChanged(
-    override val path: FieldPath,
-    public val before: Any?,
-    public val after: Any?,
-) : Change {
+public data class ValueChanged(override val path: FieldPath, public val before: Any?, public val after: Any?) :
+    Change {
     override fun prefixedWith(segment: Segment): ValueChanged = copy(path = path.prefixedWith(segment))
 }
 
@@ -55,11 +52,7 @@ public data class TypeChanged(
 }
 
 /** A keyed collection element that kept its identity but changed position. */
-public data class Moved(
-    override val path: FieldPath,
-    public val from: Int,
-    public val to: Int,
-) : Change {
+public data class Moved(override val path: FieldPath, public val from: Int, public val to: Int) : Change {
     override fun prefixedWith(segment: Segment): Moved = copy(path = path.prefixedWith(segment))
 }
 
@@ -70,8 +63,7 @@ public data class Moved(
  * change under its element and then under its property. Internal for the reason the [FieldPath]
  * overload is: one-segment lifting is the contract, this is the shortcut.
  */
-internal fun Change.prefixedWith(outer: Segment, inner: Segment): Change =
-    withPath(path.prefixedWith(outer, inner))
+internal fun Change.prefixedWith(outer: Segment, inner: Segment): Change = withPath(path.prefixedWith(outer, inner))
 
 /**
  * This change carrying [path] instead of its own.

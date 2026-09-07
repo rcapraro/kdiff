@@ -7,24 +7,23 @@ import com.tschuchort.compiletesting.configureKsp
 import com.tschuchort.compiletesting.sourcesGeneratedBySymbolProcessor
 import io.github.kdiff.runtime.Change
 import io.github.kdiff.runtime.Diff
+import io.github.kdiff.runtime.Differ
 import io.github.kdiff.runtime.PatchResult
 import io.github.kdiff.runtime.Patcher
-import io.github.kdiff.runtime.Differ
 import io.github.kdiff.runtime.Tracked
 import io.github.kdiff.runtime.TrackedField
 import io.github.kdiff.runtime.TrackerBuilder
 import io.github.kdiff.runtime.ValueChanged
 import io.github.kdiff.runtime.tracker
 
-internal fun compile(vararg sources: SourceFile): JvmCompilationResult =
-    KotlinCompilation().apply {
-        this.sources = sources.toList()
-        configureKsp {
-            symbolProcessorProviders += DiffProcessorProvider()
-        }
-        inheritClassPath = true
-        messageOutputStream = System.out
-    }.compile()
+internal fun compile(vararg sources: SourceFile): JvmCompilationResult = KotlinCompilation().apply {
+    this.sources = sources.toList()
+    configureKsp {
+        symbolProcessorProviders += DiffProcessorProvider()
+    }
+    inheritClassPath = true
+    messageOutputStream = System.out
+}.compile()
 
 internal val JvmCompilationResult.generatedFileNames: List<String>
     get() = sourcesGeneratedBySymbolProcessor.map { it.name }.toList()

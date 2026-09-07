@@ -6,22 +6,23 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 
-class EscapeHatchSpec : FunSpec({
+class EscapeHatchSpec :
+    FunSpec({
 
-    test("a property delegates to a hand-written differ at the property's path") {
-        val result = compile(diffWithSource)
-        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+        test("a property delegates to a hand-written differ at the property's path") {
+            val result = compile(diffWithSource)
+            result.exitCode shouldBe KotlinCompilation.ExitCode.OK
 
-        val diff = result.diffFixture("demo.InvoiceDiffer")
+            val diff = result.diffFixture("demo.InvoiceDiffer")
 
-        diff.changes.map { it.path.toString() } shouldContainExactly listOf("total.amount")
-    }
+            diff.changes.map { it.path.toString() } shouldContainExactly listOf("total.amount")
+        }
 
-    test("a hand-written differ nests inside two levels of generated delegation") {
-        val result = compile(
-            SourceFile.kotlin(
-                "Model.kt",
-                """
+        test("a hand-written differ nests inside two levels of generated delegation") {
+            val result = compile(
+                SourceFile.kotlin(
+                    "Model.kt",
+                    """
                 package demo
 
                 import io.github.kdiff.annotations.Diffable
@@ -46,14 +47,14 @@ class EscapeHatchSpec : FunSpec({
                     val before = Account(Invoice(Line(Money("10"))))
                     val after = Account(Invoice(Line(Money("12"))))
                 }
-                """.trimIndent(),
-            ),
-        )
-        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+                    """.trimIndent(),
+                ),
+            )
+            result.exitCode shouldBe KotlinCompilation.ExitCode.OK
 
-        val diff = result.diffFixture("demo.AccountDiffer")
+            val diff = result.diffFixture("demo.AccountDiffer")
 
-        diff.changes.map { it.path.toString() } shouldContainExactly
-            listOf("invoice.line.price.amount")
-    }
-})
+            diff.changes.map { it.path.toString() } shouldContainExactly
+                listOf("invoice.line.price.amount")
+        }
+    })

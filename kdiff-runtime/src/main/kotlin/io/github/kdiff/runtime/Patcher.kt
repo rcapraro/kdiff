@@ -29,10 +29,7 @@ public interface Patcher<T> {
  * A result is produced whenever one can be. Where [Patcher.apply] throws instead, there is no result
  * at all rather than an empty one.
  */
-public data class PatchResult<T>(
-    public val value: T,
-    public val failures: List<PatchFailure> = emptyList(),
-) {
+public data class PatchResult<T>(public val value: T, public val failures: List<PatchFailure> = emptyList()) {
     /** True when every change was applied. */
     public val isClean: Boolean
         get() = failures.isEmpty()

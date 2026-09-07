@@ -29,33 +29,34 @@ private val order = Order(
 /** Two elements of `addresses` carrying the same `@DiffKey` value. */
 private val duplicated = order.copy(addresses = listOf(a1, a1.copy(street = "9 Rue Q")))
 
-class DuplicateKeySpec : FunSpec({
+class DuplicateKeySpec :
+    FunSpec({
 
-    test("the generated differ rejects a keyed list holding two elements with one key") {
-        shouldThrow<IllegalArgumentException> { OrderDiffer.diff(order, duplicated) }
-            .message.shouldContain("addresses is keyed by id")
-    }
-
-    test("the generated patcher rejects the same list, with no changes to apply") {
-        shouldThrow<IllegalArgumentException> { OrderDiffer.apply(duplicated, emptyList()) }
-            .message.shouldContain("addresses[id=A1] cannot name one of them")
-    }
-
-    test("a tracker reports the rejection rather than swallowing it") {
-        shouldThrow<IllegalArgumentException> {
-            tracker(OrderDiffer, order) { field(Order::addresses) }.update(duplicated)
+        test("the generated differ rejects a keyed list holding two elements with one key") {
+            shouldThrow<IllegalArgumentException> { OrderDiffer.diff(order, duplicated) }
+                .message.shouldContain("addresses is keyed by id")
         }
-    }
 
-    test("a scope that excludes the offending property does not suppress the rejection") {
-        shouldThrow<IllegalArgumentException> {
-            tracker(OrderDiffer, order) { field(Order::reference) }.update(duplicated)
+        test("the generated patcher rejects the same list, with no changes to apply") {
+            shouldThrow<IllegalArgumentException> { OrderDiffer.apply(duplicated, emptyList()) }
+                .message.shouldContain("addresses[id=A1] cannot name one of them")
         }
-    }
 
-    test("trackedDiff rejects it too, whatever the scope names") {
-        shouldThrow<IllegalArgumentException> {
-            OrderDiffer.trackedDiff(order, duplicated, trackScope { field(Order::reference) })
+        test("a tracker reports the rejection rather than swallowing it") {
+            shouldThrow<IllegalArgumentException> {
+                tracker(OrderDiffer, order) { field(Order::addresses) }.update(duplicated)
+            }
         }
-    }
-})
+
+        test("a scope that excludes the offending property does not suppress the rejection") {
+            shouldThrow<IllegalArgumentException> {
+                tracker(OrderDiffer, order) { field(Order::reference) }.update(duplicated)
+            }
+        }
+
+        test("trackedDiff rejects it too, whatever the scope names") {
+            shouldThrow<IllegalArgumentException> {
+                OrderDiffer.trackedDiff(order, duplicated, trackScope { field(Order::reference) })
+            }
+        }
+    })

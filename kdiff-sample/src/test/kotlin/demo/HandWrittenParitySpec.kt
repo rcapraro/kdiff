@@ -73,38 +73,39 @@ private infix fun Order.agreesWith(after: Order) {
     OrderByHand.diff(this, after).changes shouldBe OrderDiffer.diff(this, after).changes
 }
 
-class HandWrittenParitySpec : FunSpec({
+class HandWrittenParitySpec :
+    FunSpec({
 
-    test("both routes report nothing for an unchanged instance") {
-        before agreesWith before
-    }
+        test("both routes report nothing for an unchanged instance") {
+            before agreesWith before
+        }
 
-    test("both routes report the same changes for a transition touching every shape") {
-        val after = before.copy(
-            reference = "R-2",
-            status = Status.CLOSED,
-            note = "rush",
-            lastTouched = "friday",
-            billing = first.copy(city = "Ockham"),
-            shipping = null,
-            addresses = listOf(second, first.copy(street = "9 Rue W"), third),
-            tags = listOf("calm", "extra"),
-            labels = setOf("b", "c"),
-            amounts = mapOf("eur" to "12", "gbp" to "9"),
-            payment = Transfer("10", "FR76"),
-            total = Money("12", "EUR"),
-            weight = Weight("600"),
-        )
+        test("both routes report the same changes for a transition touching every shape") {
+            val after = before.copy(
+                reference = "R-2",
+                status = Status.CLOSED,
+                note = "rush",
+                lastTouched = "friday",
+                billing = first.copy(city = "Ockham"),
+                shipping = null,
+                addresses = listOf(second, first.copy(street = "9 Rue W"), third),
+                tags = listOf("calm", "extra"),
+                labels = setOf("b", "c"),
+                amounts = mapOf("eur" to "12", "gbp" to "9"),
+                payment = Transfer("10", "FR76"),
+                total = Money("12", "EUR"),
+                weight = Weight("600"),
+            )
 
-        OrderDiffer.diff(before, after).changes.shouldNotBeEmpty()
-        before agreesWith after
-    }
+            OrderDiffer.diff(before, after).changes.shouldNotBeEmpty()
+            before agreesWith after
+        }
 
-    test("both routes report the same changes within one subclass") {
-        before agreesWith before.copy(payment = Card("12", "5678"))
-    }
+        test("both routes report the same changes within one subclass") {
+            before agreesWith before.copy(payment = Card("12", "5678"))
+        }
 
-    test("both routes ignore the property the annotation excludes") {
-        before agreesWith before.copy(lastTouched = "friday")
-    }
-})
+        test("both routes ignore the property the annotation excludes") {
+            before agreesWith before.copy(lastTouched = "friday")
+        }
+    })

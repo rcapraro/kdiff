@@ -27,10 +27,7 @@ import com.squareup.kotlinpoet.TypeSpec
 import com.squareup.kotlinpoet.ksp.toClassName
 import com.squareup.kotlinpoet.ksp.writeTo
 
-public class DiffProcessor(
-    private val codeGenerator: CodeGenerator,
-    private val logger: KSPLogger,
-) : SymbolProcessor {
+public class DiffProcessor(private val codeGenerator: CodeGenerator, private val logger: KSPLogger) : SymbolProcessor {
 
     override fun process(resolver: Resolver): List<KSAnnotated> {
         val annotated = resolver.getSymbolsWithAnnotation(DIFFABLE).toList()
@@ -227,14 +224,17 @@ public class DiffProcessor(
             val name = subclass.toClassName()
             branches.add(
                 "before is %T && after is %T -> addAll(%T.diff(before, after).changes)\n",
-                name, name, differName(name),
+                name,
+                name,
+                differName(name),
             )
         }
         branches.add("else -> {\n").indent()
             .add(
                 "add(%T(%T.ROOT, before::class.simpleName.orEmpty(), " +
                     "after::class.simpleName.orEmpty(), before, after))\n",
-                TYPE_CHANGED, FIELD_PATH,
+                TYPE_CHANGED,
+                FIELD_PATH,
             )
             .apply { shared.forEach { (property, comparison) -> add(emit(property, comparison)) } }
             .unindent().add("}\n")
@@ -303,7 +303,8 @@ public class DiffProcessor(
         val body = CodeBlock.builder()
             .add(
                 "val swap = changes.firstOrNull { it is %T && it.path.segments.isEmpty() } as? %T\n",
-                TYPE_CHANGED, TYPE_CHANGED,
+                TYPE_CHANGED,
+                TYPE_CHANGED,
             )
             .add("if (swap != null) return %T(swap.after as %T)\n\n", PATCH_RESULT, target)
             .add("return when (before) {\n").indent()
@@ -338,7 +339,11 @@ public class DiffProcessor(
         if (!isConstructorParameter) {
             return CodeBlock.of(
                 "val %N = %M(before.%N, %L, %S)\n",
-                patched, NOT_CONSTRUCTOR_PROPERTY, name, changes, name,
+                patched,
+                NOT_CONSTRUCTOR_PROPERTY,
+                name,
+                changes,
+                name,
             )
         }
 
@@ -351,15 +356,29 @@ public class DiffProcessor(
             is Comparison.Nested -> when {
                 !comparison.canPatch -> CodeBlock.of(
                     "val %N = %M(before.%N, %L, %S)\n",
-                    patched, UNPATCHABLE, name, changes, name,
+                    patched,
+                    UNPATCHABLE,
+                    name,
+                    changes,
+                    name,
                 )
+
                 nullable -> CodeBlock.of(
                     "val %N = %M(before.%N, %L, %T)\n",
-                    patched, PATCH_NESTED_NULLABLE, name, changes, comparison.differ,
+                    patched,
+                    PATCH_NESTED_NULLABLE,
+                    name,
+                    changes,
+                    comparison.differ,
                 )
+
                 else -> CodeBlock.of(
                     "val %N = %M(before.%N, %L, %T)\n",
-                    patched, PATCH_NESTED, name, changes, comparison.differ,
+                    patched,
+                    PATCH_NESTED,
+                    name,
+                    changes,
+                    comparison.differ,
                 )
             }
 
@@ -374,7 +393,11 @@ public class DiffProcessor(
             } else {
                 CodeBlock.of(
                     "val %N = %M(before.%N, %L, %T)\n",
-                    patched, PATCH_POSITIONAL_LIST, name, changes, comparison.differ,
+                    patched,
+                    PATCH_POSITIONAL_LIST,
+                    name,
+                    changes,
+                    comparison.differ,
                 )
             }
 
@@ -386,7 +409,11 @@ public class DiffProcessor(
             } else {
                 CodeBlock.of(
                     "val %N = %M(before.%N, %L, %T)\n",
-                    patched, PATCH_MAP, name, changes, comparison.valueDiffer,
+                    patched,
+                    PATCH_MAP,
+                    name,
+                    changes,
+                    comparison.valueDiffer,
                 )
             }
         }
@@ -419,12 +446,7 @@ public class DiffProcessor(
         return scope
     }
 
-    private fun reportsValidDepth(
-        depth: Int,
-        symbol: KSAnnotated,
-        name: String,
-        annotation: String,
-    ): Boolean {
+    private fun reportsValidDepth(depth: Int, symbol: KSAnnotated, name: String, annotation: String): Boolean {
         if (depth == UNLIMITED_DEPTH || depth >= 1) return true
         logger.error(
             "$annotation on $name declares depth $depth; depth must be at least 1, or " +
@@ -619,30 +641,50 @@ public class DiffProcessor(
             is Comparison.Nested -> if (nullable) {
                 CodeBlock.of(
                     "%M(%S, before.%N, after.%N, %T)\n",
-                    COMPARE_NESTED_NULLABLE, name, name, name, comparison.differ,
+                    COMPARE_NESTED_NULLABLE,
+                    name,
+                    name,
+                    name,
+                    comparison.differ,
                 )
             } else {
                 CodeBlock.of(
                     "%M(%S, before.%N, after.%N, %T)\n",
-                    COMPARE_NESTED, name, name, name, comparison.differ,
+                    COMPARE_NESTED,
+                    name,
+                    name,
+                    name,
+                    comparison.differ,
                 )
             }
 
             is Comparison.KeyedList -> CodeBlock.of(
                 "%M(%S, %S, before.%N, after.%N, %T) { it.%N }\n",
-                COMPARE_KEYED_LIST, name, comparison.keyProperty, name, name,
-                comparison.differ, comparison.keyProperty,
+                COMPARE_KEYED_LIST,
+                name,
+                comparison.keyProperty,
+                name,
+                name,
+                comparison.differ,
+                comparison.keyProperty,
             )
 
             is Comparison.PositionalList -> if (comparison.differ == null) {
                 CodeBlock.of(
                     "%M(%S, before.%N, after.%N, null)\n",
-                    COMPARE_POSITIONAL_LIST, name, name, name,
+                    COMPARE_POSITIONAL_LIST,
+                    name,
+                    name,
+                    name,
                 )
             } else {
                 CodeBlock.of(
                     "%M(%S, before.%N, after.%N, %T)\n",
-                    COMPARE_POSITIONAL_LIST, name, name, name, comparison.differ,
+                    COMPARE_POSITIONAL_LIST,
+                    name,
+                    name,
+                    name,
+                    comparison.differ,
                 )
             }
 
@@ -654,10 +696,13 @@ public class DiffProcessor(
             } else {
                 CodeBlock.of(
                     "%M(%S, before.%N, after.%N, %T)\n",
-                    COMPARE_MAP, name, name, name, comparison.valueDiffer,
+                    COMPARE_MAP,
+                    name,
+                    name,
+                    name,
+                    comparison.valueDiffer,
                 )
             }
         }
     }
 }
-

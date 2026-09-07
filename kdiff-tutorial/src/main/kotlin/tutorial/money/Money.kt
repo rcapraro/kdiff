@@ -7,8 +7,7 @@ package tutorial.money
  * Amounts are strings so the tutorial does not have to explain decimal arithmetic.
  */
 class Money(val amount: String, val currency: String) {
-    override fun equals(other: Any?): Boolean =
-        other is Money && other.amount == amount && other.currency == currency
+    override fun equals(other: Any?): Boolean = other is Money && other.amount == amount && other.currency == currency
 
     override fun hashCode(): Int = 31 * amount.hashCode() + currency.hashCode()
 

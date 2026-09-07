@@ -39,8 +39,7 @@ class UpdatePersonHandler(private val repository: PersonRepository) {
 
     fun handle(command: UpdatePerson): List<PersonEvent> = decide(command.id, command::applyTo)
 
-    fun handle(command: TouchPerson): List<PersonEvent> =
-        decide(command.id) { it.copy(lastSeenAt = command.at) }
+    fun handle(command: TouchPerson): List<PersonEvent> = decide(command.id) { it.copy(lastSeenAt = command.at) }
 
     private fun decide(id: PersonId, intent: (Person) -> Person): List<PersonEvent> {
         val current = repository.load(id) ?: error("no person $id")

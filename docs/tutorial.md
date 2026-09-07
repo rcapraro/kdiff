@@ -94,12 +94,7 @@ rather than by position:
 
 <!-- from: kdiff-tutorial/src/main/kotlin/tutorial/domain/Address.kt -->
 ```kotlin
-data class Address(
-    val id: AddressId,
-    val line1: String,
-    val city: String,
-    val country: String,
-)
+data class Address(val id: AddressId, val line1: String, val city: String, val country: String)
 ```
 
 A contact holds a phone, so the model is three levels deep at one property — a changed number is
@@ -174,7 +169,13 @@ differ, and a swap reports a type change at the property.
 <!-- from: kdiff-tutorial/src/main/kotlin/tutorial/diff/PersonDiffing.kt -->
 ```kotlin
 val EmploymentDiffer: Differ<Employment> = differ {
-    subtype(Employed::class, differ { field(Employed::employer); field(Employed::since) })
+    subtype(
+        Employed::class,
+        differ {
+            field(Employed::employer)
+            field(Employed::since)
+        },
+    )
     subtype(Retired::class, differ { field(Retired::since) })
 }
 ```

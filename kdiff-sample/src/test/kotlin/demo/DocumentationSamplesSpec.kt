@@ -122,44 +122,45 @@ private fun Block.distinctiveLines(): List<String> = lines
     .filterNot { it == "..." || it.all { character -> character in "(){}[],:=" } }
     .filter { it.length > 12 }
 
-class DocumentationSamplesSpec : FunSpec({
+class DocumentationSamplesSpec :
+    FunSpec({
 
-    val pages = documentationPages()
+        val pages = documentationPages()
 
-    test("the documentation pages exist to be checked") {
-        pages.map { it.relativePage() }.shouldNotBeEmptyList()
-    }
-
-    test("every published coordinate in the documentation names version $publishedVersion") {
-        coordinateBearingPages().flatMap { it.staleCoordinates() }.shouldBeEmpty()
-    }
-
-    pages.forEach { page ->
-        val name = page.relativePage()
-        val blocks = page.kotlinBlocks()
-
-        blocks.filter { it.source != null }.forEachIndexed { ordinal, block ->
-            val source = block.source!!
-
-            test("$name block ${ordinal + 1} cites a source file that exists: $source") {
-                repoRoot.resolve(source).isFile shouldBe true
-            }
-
-            test("$name block ${ordinal + 1} still matches $source") {
-                val actual = repoRoot.resolve(source).readText()
-                val drifted = block.distinctiveLines().filterNot { actual.contains(it) }
-
-                drifted.shouldBeEmpty()
-            }
+        test("the documentation pages exist to be checked") {
+            pages.map { it.relativePage() }.shouldNotBeEmptyList()
         }
 
-        test("$name marks every Kotlin sample either with its source or as illustrative") {
-            blocks.filter { it.source == null && !it.illustrative }
-                .map { it.lines.firstOrNull()?.trim() }
-                .shouldBeEmpty()
+        test("every published coordinate in the documentation names version $publishedVersion") {
+            coordinateBearingPages().flatMap { it.staleCoordinates() }.shouldBeEmpty()
         }
-    }
-})
+
+        pages.forEach { page ->
+            val name = page.relativePage()
+            val blocks = page.kotlinBlocks()
+
+            blocks.filter { it.source != null }.forEachIndexed { ordinal, block ->
+                val source = block.source!!
+
+                test("$name block ${ordinal + 1} cites a source file that exists: $source") {
+                    repoRoot.resolve(source).isFile shouldBe true
+                }
+
+                test("$name block ${ordinal + 1} still matches $source") {
+                    val actual = repoRoot.resolve(source).readText()
+                    val drifted = block.distinctiveLines().filterNot { actual.contains(it) }
+
+                    drifted.shouldBeEmpty()
+                }
+            }
+
+            test("$name marks every Kotlin sample either with its source or as illustrative") {
+                blocks.filter { it.source == null && !it.illustrative }
+                    .map { it.lines.firstOrNull()?.trim() }
+                    .shouldBeEmpty()
+            }
+        }
+    })
 
 private fun List<String>.shouldNotBeEmptyList() {
     check(isNotEmpty()) { "no documentation pages were found under $repoRoot" }

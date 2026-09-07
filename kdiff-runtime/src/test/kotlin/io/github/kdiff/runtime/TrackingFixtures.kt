@@ -58,7 +58,9 @@ internal object PaymentDiffer : Differ<Payment> {
         buildList {
             when {
                 before is Card && after is Card -> addAll(CardDiffer.diff(before, after).changes)
+
                 before is Transfer && after is Transfer -> addAll(TransferDiffer.diff(before, after).changes)
+
                 else -> {
                     add(
                         TypeChanged(

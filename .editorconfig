@@ -1,0 +1,39 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{kt,kts}]
+max_line_length = 120
+ktlint_code_style = intellij_idea
+
+# Trailing commas are used throughout, and removing them would make every future
+# argument addition a two-line diff instead of a one-line one.
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+
+# No wildcard import exists in this repository, and an explicit import list is what
+# makes a generated file's dependencies readable.
+ij_kotlin_name_count_to_use_star_import = 2147483647
+ij_kotlin_name_count_to_use_star_import_for_members = 2147483647
+
+# Files here are named after their subject, not after whichever class they happen to hold:
+# Patch.kt is the patch algorithms, and `Patched` is one small result type among them.
+ktlint_standard_filename = disabled
+
+[*.{yml,yaml,json}]
+indent_size = 2
+
+[*.md]
+# Prose is hard-wrapped by hand, and trailing whitespace is markdown's line break.
+trim_trailing_whitespace = false
+
+[gradle/wrapper/**]
+# Not ours to format.
+insert_final_newline = unset
+trim_trailing_whitespace = unset

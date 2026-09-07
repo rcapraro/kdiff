@@ -10,11 +10,12 @@ import io.kotest.matchers.string.shouldContain
  * assert that the generated code rejects it at runtime, in both directions, rather than collapsing
  * the duplicates as it once did.
  */
-class DuplicateKeySpec : FunSpec({
+class DuplicateKeySpec :
+    FunSpec({
 
-    val model = SourceFile.kotlin(
-        "Team.kt",
-        """
+        val model = SourceFile.kotlin(
+            "Team.kt",
+            """
         package demo
 
         import io.github.kdiff.annotations.DiffKey
@@ -30,27 +31,27 @@ class DuplicateKeySpec : FunSpec({
             val before = Team(listOf(Member("M1", "Ada"), Member("M1", "Grace")))
             val after = Team(listOf(Member("M1", "Ada")))
         }
-        """.trimIndent(),
-    )
+            """.trimIndent(),
+        )
 
-    test("a generated differ rejects a list holding two elements with one key") {
-        val result = compile(model)
+        test("a generated differ rejects a list holding two elements with one key") {
+            val result = compile(model)
 
-        val thrown = shouldThrow<IllegalArgumentException> { result.diffFixture("demo.TeamDiffer") }
+            val thrown = shouldThrow<IllegalArgumentException> { result.diffFixture("demo.TeamDiffer") }
 
-        thrown.message.shouldContain("members is keyed by id")
-        thrown.message.shouldContain("share the key M1")
-        thrown.message.shouldContain("members[id=M1] cannot name one of them")
-    }
-
-    test("a generated patcher rejects the same list, so both directions agree") {
-        val result = compile(model)
-
-        val thrown = shouldThrow<IllegalArgumentException> {
-            result.patchFixture("demo.TeamDiffer", emptyList())
+            thrown.message.shouldContain("members is keyed by id")
+            thrown.message.shouldContain("share the key M1")
+            thrown.message.shouldContain("members[id=M1] cannot name one of them")
         }
 
-        thrown.message.shouldContain("members is keyed by id")
-        thrown.message.shouldContain("share the key M1")
-    }
-})
+        test("a generated patcher rejects the same list, so both directions agree") {
+            val result = compile(model)
+
+            val thrown = shouldThrow<IllegalArgumentException> {
+                result.patchFixture("demo.TeamDiffer", emptyList())
+            }
+
+            thrown.message.shouldContain("members is keyed by id")
+            thrown.message.shouldContain("share the key M1")
+        }
+    })

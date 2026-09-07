@@ -2,10 +2,9 @@ package benchmarks
 
 import io.github.kdiff.runtime.Diff
 import io.github.kdiff.runtime.PatchResult
+import io.github.kdiff.runtime.route
 import io.github.kdiff.runtime.trackScope
 import io.github.kdiff.runtime.tracker
-import io.github.kdiff.runtime.route
-import java.util.concurrent.TimeUnit
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.BenchmarkMode
 import org.openjdk.jmh.annotations.Mode
@@ -13,6 +12,7 @@ import org.openjdk.jmh.annotations.OutputTimeUnit
 import org.openjdk.jmh.annotations.Scope
 import org.openjdk.jmh.annotations.State
 import org.openjdk.jmh.infra.Blackhole
+import java.util.concurrent.TimeUnit
 
 /**
  * The nine cases of design D11. Each isolates one decision, so a number that does not move points at
@@ -47,13 +47,11 @@ open class KdiffBenchmark {
 
     /** D7 and D9 together: one change against a twelve-property type. */
     @Benchmark
-    fun applyOneChange(): PatchResult<Order> =
-        OrderDiffer.apply(Fixtures.unchangedBefore, Fixtures.oneLeafChanges)
+    fun applyOneChange(): PatchResult<Order> = OrderDiffer.apply(Fixtures.unchangedBefore, Fixtures.oneLeafChanges)
 
     /** The patch path's own key handling. */
     @Benchmark
-    fun applyKeyedListRoundTrip(): PatchResult<Order> =
-        OrderDiffer.apply(Fixtures.keyedBefore, Fixtures.keyedChanges)
+    fun applyKeyedListRoundTrip(): PatchResult<Order> = OrderDiffer.apply(Fixtures.keyedBefore, Fixtures.keyedChanges)
 
     /** D6: a narrow scope over fifty changes, of which two are selected. */
     @Benchmark

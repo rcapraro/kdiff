@@ -24,31 +24,19 @@ internal sealed interface Comparison {
      * [canPatch] is false for a `@DiffWith` target that only implements `Differ`: the library can
      * compare that property but cannot reconstruct it, so its changes are reported instead.
      */
-    data class Nested(
-        val differ: ClassName,
-        override val sources: List<KSFile>,
-        val canPatch: Boolean = true,
-    ) : Comparison
+    data class Nested(val differ: ClassName, override val sources: List<KSFile>, val canPatch: Boolean = true) :
+        Comparison
 
-    data class KeyedList(
-        val differ: ClassName,
-        val keyProperty: String,
-        override val sources: List<KSFile>,
-    ) : Comparison
+    data class KeyedList(val differ: ClassName, val keyProperty: String, override val sources: List<KSFile>) :
+        Comparison
 
-    data class PositionalList(
-        val differ: ClassName?,
-        override val sources: List<KSFile>,
-    ) : Comparison
+    data class PositionalList(val differ: ClassName?, override val sources: List<KSFile>) : Comparison
 
     data object AsSet : Comparison {
         override val sources: List<KSFile> = emptyList()
     }
 
-    data class AsMap(
-        val valueDiffer: ClassName?,
-        override val sources: List<KSFile>,
-    ) : Comparison
+    data class AsMap(val valueDiffer: ClassName?, override val sources: List<KSFile>) : Comparison
 }
 
 /** One property of a declared tracking scope, mirroring the runtime's `TrackedField`. */
@@ -72,8 +60,7 @@ internal fun KSAnnotated.hasAnnotation(fqName: String): Boolean =
 
 internal fun KSClassDeclaration.isSealedType(): Boolean = Modifier.SEALED in modifiers
 
-internal fun KSClassDeclaration.isDataClass(): Boolean =
-    classKind == ClassKind.CLASS && Modifier.DATA in modifiers
+internal fun KSClassDeclaration.isDataClass(): Boolean = classKind == ClassKind.CLASS && Modifier.DATA in modifiers
 
 /** The single `@DiffKey` property of a type, or null. Multiplicity is diagnosed separately. */
 internal fun KSClassDeclaration.keyProperty(): KSPropertyDeclaration? =
@@ -96,14 +83,14 @@ internal fun KSType.isValueType(): Boolean {
 
 private fun KSType.qualified(): String? = declarationOrNull()?.qualifiedName?.asString()
 
-internal fun KSType.isList(): Boolean = qualified() in setOf("kotlin.collections.List", "kotlin.collections.MutableList")
+internal fun KSType.isList(): Boolean =
+    qualified() in setOf("kotlin.collections.List", "kotlin.collections.MutableList")
 
 internal fun KSType.isSet(): Boolean = qualified() in setOf("kotlin.collections.Set", "kotlin.collections.MutableSet")
 
 internal fun KSType.isMap(): Boolean = qualified() in setOf("kotlin.collections.Map", "kotlin.collections.MutableMap")
 
-internal fun KSType.typeArgumentAt(index: Int): KSType? =
-    arguments.getOrNull(index)?.type?.resolve()
+internal fun KSType.typeArgumentAt(index: Int): KSType? = arguments.getOrNull(index)?.type?.resolve()
 
 internal fun KSClassDeclaration.file(): List<KSFile> = listOfNotNull(containingFile)
 

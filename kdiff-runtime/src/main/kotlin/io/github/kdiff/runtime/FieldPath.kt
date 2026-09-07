@@ -37,8 +37,12 @@ public value class FieldPath(public val segments: List<Segment>) {
     // Built rather than `listOf(segment) + segments`, which allocates a singleton list and then copies
     // it into a second one. Lifting happens once per change per level of nesting, so it is the runtime's
     // most repeated allocation.
-    public fun prefixedWith(segment: Segment): FieldPath =
-        FieldPath(ArrayList<Segment>(segments.size + 1).also { it += segment; it += segments })
+    public fun prefixedWith(segment: Segment): FieldPath = FieldPath(
+        ArrayList<Segment>(segments.size + 1).also {
+            it += segment
+            it += segments
+        },
+    )
 
     /**
      * This path with [outer] and then [inner] inserted at the front, in one copy rather than two.
@@ -48,8 +52,13 @@ public value class FieldPath(public val segments: List<Segment>) {
      * Internal because [prefixedWith] is the lifting contract a `Change` states; this is the shortcut
      * its only two-segment callers take.
      */
-    internal fun prefixedWith(outer: Segment, inner: Segment): FieldPath =
-        FieldPath(ArrayList<Segment>(segments.size + 2).also { it += outer; it += inner; it += segments })
+    internal fun prefixedWith(outer: Segment, inner: Segment): FieldPath = FieldPath(
+        ArrayList<Segment>(segments.size + 2).also {
+            it += outer
+            it += inner
+            it += segments
+        },
+    )
 
     /**
      * This path with its first segment dropped, the descent [prefixedWith] is the ascent of.
@@ -93,7 +102,9 @@ public value class FieldPath(public val segments: List<Segment>) {
                     if (isNotEmpty()) append('.')
                     append(segment.name)
                 }
+
                 is Segment.Index -> append("[${segment.index}]")
+
                 is Segment.Key -> append("[${segment.property}=${segment.value}]")
             }
         }

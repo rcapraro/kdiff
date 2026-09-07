@@ -37,155 +37,157 @@ private fun roundTrip(before: Order, after: Order) {
 
 private fun roundTripFrom(after: Order) = roundTrip(order, after)
 
-class RoundTripSpec : FunSpec({
+class RoundTripSpec :
+    FunSpec({
 
-    test("values and enums") {
-        roundTripFrom(order.copy(reference = "R-2", status = Status.CLOSED))
-    }
+        test("values and enums") {
+            roundTripFrom(order.copy(reference = "R-2", status = Status.CLOSED))
+        }
 
-    test("a nullable property in both directions") {
-        roundTripFrom(order.copy(note = "rush"))
-        roundTrip(order.copy(note = "rush"), order.copy(note = null))
-    }
+        test("a nullable property in both directions") {
+            roundTripFrom(order.copy(note = "rush"))
+            roundTrip(order.copy(note = "rush"), order.copy(note = null))
+        }
 
-    test("a nested annotated type") {
-        roundTripFrom(order.copy(billing = a1.copy(street = "9 Rue Z", city = "Nice")))
-    }
+        test("a nested annotated type") {
+            roundTripFrom(order.copy(billing = a1.copy(street = "9 Rue Z", city = "Nice")))
+        }
 
-    test("a nullable nested type in both directions") {
-        roundTripFrom(order.copy(shipping = null))
-        roundTrip(order.copy(shipping = null), order)
-    }
+        test("a nullable nested type in both directions") {
+            roundTripFrom(order.copy(shipping = null))
+            roundTrip(order.copy(shipping = null), order)
+        }
 
-    test("a keyed list with a modification, an addition, a removal and a move at once") {
-        roundTripFrom(order.copy(addresses = listOf(a2.copy(city = "Nice"), a3)))
-    }
+        test("a keyed list with a modification, an addition, a removal and a move at once") {
+            roundTripFrom(order.copy(addresses = listOf(a2.copy(city = "Nice"), a3)))
+        }
 
-    test("a keyed list reordered only") {
-        roundTripFrom(order.copy(addresses = listOf(a2, a1)))
-    }
+        test("a keyed list reordered only") {
+            roundTripFrom(order.copy(addresses = listOf(a2, a1)))
+        }
 
-    test("an unkeyed list that changed length in both directions") {
-        roundTripFrom(order.copy(tags = listOf("urgent", "b2b", "new")))
-        roundTripFrom(order.copy(tags = listOf("urgent")))
-        roundTripFrom(order.copy(tags = listOf("calm", "b2b")))
-    }
+        test("an unkeyed list that changed length in both directions") {
+            roundTripFrom(order.copy(tags = listOf("urgent", "b2b", "new")))
+            roundTripFrom(order.copy(tags = listOf("urgent")))
+            roundTripFrom(order.copy(tags = listOf("calm", "b2b")))
+        }
 
-    test("a set") {
-        roundTripFrom(order.copy(labels = setOf("b", "c")))
-    }
+        test("a set") {
+            roundTripFrom(order.copy(labels = setOf("b", "c")))
+        }
 
-    test("a map with a changed, an added and a removed entry") {
-        roundTripFrom(order.copy(amounts = mapOf("eur" to "12", "usd" to "3")))
-    }
+        test("a map with a changed, an added and a removed entry") {
+            roundTripFrom(order.copy(amounts = mapOf("eur" to "12", "usd" to "3")))
+        }
 
-    test("a sealed subclass change") {
-        roundTripFrom(order.copy(payment = Transfer("12", "FR76")))
-    }
+        test("a sealed subclass change") {
+            roundTripFrom(order.copy(payment = Transfer("12", "FR76")))
+        }
 
-    test("a sealed value keeping its subclass") {
-        roundTripFrom(order.copy(payment = Card("10", "5678")))
-    }
+        test("a sealed value keeping its subclass") {
+            roundTripFrom(order.copy(payment = Card("10", "5678")))
+        }
 
-    test("a subclass change yields the target's subclass") {
-        val after = order.copy(payment = Transfer("12", "FR76"))
+        test("a subclass change yields the target's subclass") {
+            val after = order.copy(payment = Transfer("12", "FR76"))
 
-        val result = OrderDiffer.apply(order, OrderDiffer.diff(order, after).changes)
+            val result = OrderDiffer.apply(order, OrderDiffer.diff(order, after).changes)
 
-        result.value.payment.shouldBeInstanceOf<Transfer>()
-    }
+            result.value.payment.shouldBeInstanceOf<Transfer>()
+        }
 
-    test("a hand-written differ that can also patch") {
-        roundTripFrom(order.copy(total = Money("12", "EUR")))
-    }
+        test("a hand-written differ that can also patch") {
+            roundTripFrom(order.copy(total = Money("12", "EUR")))
+        }
 
-    test("everything at once") {
-        roundTripFrom(
-            order.copy(
-                reference = "R-9",
-                status = Status.CLOSED,
-                note = "rush",
-                billing = a1.copy(city = "Nice"),
-                shipping = null,
-                addresses = listOf(a2.copy(street = "changed"), a3),
-                tags = listOf("only"),
-                labels = setOf("c"),
-                amounts = mapOf("usd" to "7"),
-                payment = Transfer("99", "FR76"),
-                total = Money("99", "USD"),
-            ),
-        )
-    }
+        test("everything at once") {
+            roundTripFrom(
+                order.copy(
+                    reference = "R-9",
+                    status = Status.CLOSED,
+                    note = "rush",
+                    billing = a1.copy(city = "Nice"),
+                    shipping = null,
+                    addresses = listOf(a2.copy(street = "changed"), a3),
+                    tags = listOf("only"),
+                    labels = setOf("c"),
+                    amounts = mapOf("usd" to "7"),
+                    payment = Transfer("99", "FR76"),
+                    total = Money("99", "USD"),
+                ),
+            )
+        }
 
-    test("an ignored property keeps the source value and reports nothing") {
-        val after = order.copy(lastTouched = "friday")
+        test("an ignored property keeps the source value and reports nothing") {
+            val after = order.copy(lastTouched = "friday")
 
-        val result = OrderDiffer.apply(order, OrderDiffer.diff(order, after).changes)
+            val result = OrderDiffer.apply(order, OrderDiffer.diff(order, after).changes)
 
-        result.failures.shouldBeEmpty()
-        result.value.lastTouched shouldBe "monday"
-    }
-})
+            result.failures.shouldBeEmpty()
+            result.value.lastTouched shouldBe "monday"
+        }
+    })
 
-class PatchContractSpec : FunSpec({
+class PatchContractSpec :
+    FunSpec({
 
-    test("applying does not modify its source") {
-        val changes = OrderDiffer.diff(order, order.copy(reference = "R-2")).changes
+        test("applying does not modify its source") {
+            val changes = OrderDiffer.diff(order, order.copy(reference = "R-2")).changes
 
-        OrderDiffer.apply(order, changes)
+            OrderDiffer.apply(order, changes)
 
-        order.reference shouldBe "R-1"
-    }
+            order.reference shouldBe "R-1"
+        }
 
-    test("applying is repeatable") {
-        val changes = OrderDiffer.diff(order, order.copy(reference = "R-2")).changes
+        test("applying is repeatable") {
+            val changes = OrderDiffer.diff(order, order.copy(reference = "R-2")).changes
 
-        OrderDiffer.apply(order, changes).value shouldBe OrderDiffer.apply(order, changes).value
-    }
+            OrderDiffer.apply(order, changes).value shouldBe OrderDiffer.apply(order, changes).value
+        }
 
-    test("an empty change list returns an equal instance and reports nothing") {
-        val result = OrderDiffer.apply(order, emptyList())
+        test("an empty change list returns an equal instance and reports nothing") {
+            val result = OrderDiffer.apply(order, emptyList())
 
-        result.value shouldBe order
-        result.isClean shouldBe true
-    }
+            result.value shouldBe order
+            result.isClean shouldBe true
+        }
 
-    test("a compare-only differ makes its property unpatchable, and the rest still patches") {
-        val after = order.copy(reference = "R-2", weight = Weight("750"))
+        test("a compare-only differ makes its property unpatchable, and the rest still patches") {
+            val after = order.copy(reference = "R-2", weight = Weight("750"))
 
-        val result = OrderDiffer.apply(order, OrderDiffer.diff(order, after).changes)
+            val result = OrderDiffer.apply(order, OrderDiffer.diff(order, after).changes)
 
-        result.value.reference shouldBe "R-2"
-        result.value.weight.grams shouldBe "500"
-        result.failures.single().reason shouldContain "weight"
-        result.failures.single().reason shouldContain "cannot patch"
-    }
+            result.value.reference shouldBe "R-2"
+            result.value.weight.grams shouldBe "500"
+            result.failures.single().reason shouldContain "weight"
+            result.failures.single().reason shouldContain "cannot patch"
+        }
 
-    test("a change whose path names no compared property is reported") {
-        val stray = io.github.kdiff.runtime.ValueChanged(
-            io.github.kdiff.runtime.FieldPath.of("nonsense"),
-            "a",
-            "b",
-        )
+        test("a change whose path names no compared property is reported") {
+            val stray = io.github.kdiff.runtime.ValueChanged(
+                io.github.kdiff.runtime.FieldPath.of("nonsense"),
+                "a",
+                "b",
+            )
 
-        val result = OrderDiffer.apply(order, listOf(stray))
+            val result = OrderDiffer.apply(order, listOf(stray))
 
-        result.failures.single().change shouldBe stray
-        result.failures.single().reason shouldContain "no compared property"
-        result.value shouldBe order
-    }
+            result.failures.single().change shouldBe stray
+            result.failures.single().reason shouldContain "no compared property"
+            result.value shouldBe order
+        }
 
-    test("applicable changes still apply when one fails") {
-        val stray = io.github.kdiff.runtime.ValueChanged(
-            io.github.kdiff.runtime.FieldPath.of("nonsense"),
-            "a",
-            "b",
-        )
-        val real = OrderDiffer.diff(order, order.copy(reference = "R-2")).changes
+        test("applicable changes still apply when one fails") {
+            val stray = io.github.kdiff.runtime.ValueChanged(
+                io.github.kdiff.runtime.FieldPath.of("nonsense"),
+                "a",
+                "b",
+            )
+            val real = OrderDiffer.diff(order, order.copy(reference = "R-2")).changes
 
-        val result = OrderDiffer.apply(order, real + stray)
+            val result = OrderDiffer.apply(order, real + stray)
 
-        result.value.reference shouldBe "R-2"
-        result.failures.map { it.change } shouldContainExactly listOf(stray)
-    }
-})
+            result.value.reference shouldBe "R-2"
+            result.failures.map { it.change } shouldContainExactly listOf(stray)
+        }
+    })

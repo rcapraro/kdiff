@@ -1,9 +1,9 @@
 package benchmarks
 
 import io.github.kdiff.annotations.DiffKey
+import io.github.kdiff.annotations.Diffable
 import io.github.kdiff.annotations.TrackDepth
 import io.github.kdiff.annotations.Trackable
-import io.github.kdiff.annotations.Diffable
 
 /**
  * A model shaped like `kdiff-sample`'s `Order`, declared here rather than depended on so the

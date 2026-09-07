@@ -69,7 +69,13 @@ alongside, because a parent's own properties are the only ones comparable across
 <!-- from: kdiff-tutorial/src/main/kotlin/tutorial/diff/PersonDiffing.kt -->
 ```kotlin
 val EmploymentDiffer: Differ<Employment> = differ {
-    subtype(Employed::class, differ { field(Employed::employer); field(Employed::since) })
+    subtype(
+        Employed::class,
+        differ {
+            field(Employed::employer)
+            field(Employed::since)
+        },
+    )
     subtype(Retired::class, differ { field(Retired::since) })
 }
 ```

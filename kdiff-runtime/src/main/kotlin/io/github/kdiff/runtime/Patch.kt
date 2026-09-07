@@ -1,6 +1,6 @@
 package io.github.kdiff.runtime
 
-/**
+/*
  * The helpers generated `apply` implementations call, one per rebuilt property.
  *
  * Each returns the property's new value together with any change it could not use, so the caller
@@ -25,10 +25,12 @@ public fun <T> patchValue(source: T, changes: List<Change>): Patched<T> {
                 @Suppress("UNCHECKED_CAST")
                 value = change.after as T
             }
+
             change is TypeChanged && change.path.segments.isEmpty() -> {
                 @Suppress("UNCHECKED_CAST")
                 value = change.after as T
             }
+
             else -> failures += PatchFailure(change, "not applicable to a value property")
         }
     }
@@ -56,11 +58,7 @@ public fun <T> patchNested(source: T, changes: List<Change>, patcher: Patcher<T>
  * A change at the property itself sets it wholesale — that is how a null transition was reported —
  * and anything deeper is delegated only when there is an instance to delegate to.
  */
-public fun <T : Any> patchNestedNullable(
-    source: T?,
-    changes: List<Change>,
-    patcher: Patcher<T>,
-): Patched<T?> {
+public fun <T : Any> patchNestedNullable(source: T?, changes: List<Change>, patcher: Patcher<T>): Patched<T?> {
     if (changes.isEmpty()) return Patched(source)
 
     val atProperty = changes.lastOrNull { it.path.segments.isEmpty() }
@@ -138,13 +136,16 @@ public fun <T> patchKeyedList(
         val rest = change.withoutFirstSegment()
         when {
             change is Removed && rest.path.segments.isEmpty() -> byKey.remove(key)
+
             change is Added && rest.path.segments.isEmpty() -> {
                 // A re-`put` leaves an existing key at its original position, which is what an
                 // addition of a key already present should do.
                 @Suppress("UNCHECKED_CAST")
                 byKey[key] = change.value as T
             }
+
             change is Moved && rest.path.segments.isEmpty() -> moves[key] = change.to
+
             else -> elementChanges.getOrPut(key) { mutableListOf() } += rest
         }
     }
@@ -179,11 +180,7 @@ public fun <T> patchKeyedList(
 }
 
 /** Rebuilds a positional list: no keys, so no moves and no identity beyond the index. */
-public fun <T> patchPositionalList(
-    source: List<T>,
-    changes: List<Change>,
-    patcher: Patcher<T>?,
-): Patched<List<T>> {
+public fun <T> patchPositionalList(source: List<T>, changes: List<Change>, patcher: Patcher<T>?): Patched<List<T>> {
     if (changes.isEmpty()) return Patched(source)
 
     val failures = mutableListOf<PatchFailure>()
@@ -201,10 +198,12 @@ public fun <T> patchPositionalList(
         val rest = change.withoutFirstSegment()
         when {
             change is Removed && rest.path.segments.isEmpty() -> removed += index
+
             change is Added && rest.path.segments.isEmpty() -> {
                 @Suppress("UNCHECKED_CAST")
                 added[index] = change.value as T
             }
+
             else -> elementChanges.getOrPut(index) { mutableListOf() } += rest
         }
     }
@@ -245,10 +244,12 @@ public fun <T> patchSet(source: Set<T>, changes: List<Change>): Patched<Set<T>> 
     changes.forEach { change ->
         when {
             change is Removed && change.path.segments.isEmpty() -> elements.remove(change.value)
+
             change is Added && change.path.segments.isEmpty() -> {
                 @Suppress("UNCHECKED_CAST")
                 elements += change.value as T
             }
+
             else -> failures += PatchFailure(change, "a set element cannot be modified in place")
         }
     }
@@ -257,11 +258,7 @@ public fun <T> patchSet(source: Set<T>, changes: List<Change>): Patched<Set<T>> 
 }
 
 /** Rebuilds a map by entry key, taking keys from the path segment rather than its rendering. */
-public fun <K, V> patchMap(
-    source: Map<K, V>,
-    changes: List<Change>,
-    patcher: Patcher<V>?,
-): Patched<Map<K, V>> {
+public fun <K, V> patchMap(source: Map<K, V>, changes: List<Change>, patcher: Patcher<V>?): Patched<Map<K, V>> {
     if (changes.isEmpty()) return Patched(source)
 
     val failures = mutableListOf<PatchFailure>()
@@ -280,10 +277,12 @@ public fun <K, V> patchMap(
         val rest = change.withoutFirstSegment()
         when {
             change is Removed && rest.path.segments.isEmpty() -> entries.remove(key)
+
             change is Added && rest.path.segments.isEmpty() -> {
                 @Suppress("UNCHECKED_CAST")
                 entries[key] = change.value as V
             }
+
             else -> entryChanges.getOrPut(key) { mutableListOf() } += rest
         }
     }

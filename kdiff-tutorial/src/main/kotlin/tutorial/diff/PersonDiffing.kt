@@ -37,7 +37,13 @@ val AddressDiffer: Differ<Address> = differ {
 
 /** A sealed type: two of one subtype delegate, and a swap reports a type change. */
 val EmploymentDiffer: Differ<Employment> = differ {
-    subtype(Employed::class, differ { field(Employed::employer); field(Employed::since) })
+    subtype(
+        Employed::class,
+        differ {
+            field(Employed::employer)
+            field(Employed::since)
+        },
+    )
     subtype(Retired::class, differ { field(Retired::since) })
 }
 
