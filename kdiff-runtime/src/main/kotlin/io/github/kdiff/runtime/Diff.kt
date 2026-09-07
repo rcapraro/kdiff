@@ -64,6 +64,31 @@ public data class Moved(
 }
 
 /**
+ * The same change relocated under [outer] and then [inner], in one path copy rather than two.
+ *
+ * The two-segment counterpart of [Change.prefixedWith], for the collection helpers that lift a nested
+ * change under its element and then under its property. Internal for the reason the [FieldPath]
+ * overload is: one-segment lifting is the contract, this is the shortcut.
+ */
+internal fun Change.prefixedWith(outer: Segment, inner: Segment): Change =
+    withPath(path.prefixedWith(outer, inner))
+
+/**
+ * This change carrying [path] instead of its own.
+ *
+ * Exhaustive by construction, like `Change.withSides`: a sixth [Change] variant fails to compile here
+ * rather than silently keeping the wrong path. Every relocation of a change goes through this, so it
+ * is the only place that list has to be kept complete.
+ */
+internal fun Change.withPath(path: FieldPath): Change = when (this) {
+    is ValueChanged -> copy(path = path)
+    is Added -> copy(path = path)
+    is Removed -> copy(path = path)
+    is TypeChanged -> copy(path = path)
+    is Moved -> copy(path = path)
+}
+
+/**
  * The result of comparing two instances: every [Change] found, in the order the fields were
  * compared.
  *

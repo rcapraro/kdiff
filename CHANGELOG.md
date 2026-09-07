@@ -11,6 +11,40 @@ entry written for someone deciding whether to upgrade.
 
 ## [Unreleased]
 
+### Changed
+
+- The runtime's three hot paths — comparison, application and tracking — allocate substantially less
+  for the same results. No API is removed or changed, no annotation means anything different, and the
+  change vocabulary is untouched: upgrading is a version bump.
+
+  Comparison builds a lifted path in one copy instead of two and lifts a nested collection change once
+  instead of twice; sets are compared by membership rather than by building two intermediate sets; a
+  keyed list indexes by key without wrapping every element, and detects a repeated key from that index
+  rather than from a second walk. Applying returns a property no change addresses as the source
+  instance rather than rebuilding it. Tracking resolves each property's depth once when the scope is
+  resolved, so deciding whether to report a change allocates nothing. Routing groups changes once
+  instead of scanning them once per handler.
+
+- Applying a diff no longer rebuilds a property that nothing in the change list addresses: the source
+  instance is carried through, as it already was for a nested value and for a property excluded from
+  comparison. Results compare equal either way; what changes is that the rebuilt object now shares an
+  untouched collection with its source, exactly as `copy()` already did for every property a patcher
+  does not name.
+
+  The one precondition this does not skip is a keyed list holding a repeated key, which is still
+  rejected whether or not a change addresses it.
+
+- A generated `apply` declares the set of compared property names once as a private property instead
+  of rebuilding it on every call, and gathers its failures into one list instead of folding them with
+  `+`. The generated API is unchanged — the new property is private — but regenerating is needed to
+  pick this up.
+
+### Added
+
+- `kdiff-benchmarks`, an unpublished module carrying JMH benchmarks for comparison, application,
+  tracking and routing. It is deliberately not part of `./gradlew check`; run it with
+  `./gradlew :kdiff-benchmarks:jmh`, adding `-Pjmh.profilers=gc` for allocation rate.
+
 ## [0.3.0] - 2026-09-06
 
 ### Added

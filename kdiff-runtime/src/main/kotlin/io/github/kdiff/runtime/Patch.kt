@@ -14,6 +14,8 @@ private const val NOT_CONSTRUCTOR = "only constructor properties can be reconstr
 
 /** Takes the new value from the last value change at this property, ignoring none of the rest. */
 public fun <T> patchValue(source: T, changes: List<Change>): Patched<T> {
+    if (changes.isEmpty()) return Patched(source)
+
     val failures = mutableListOf<PatchFailure>()
     var value = source
 
@@ -108,12 +110,22 @@ public fun <T> patchKeyedList(
     keyProperty: String? = null,
     keyOf: (T) -> Any?,
 ): Patched<List<T>> {
+    // Insertion-ordered, so this map is the element order as well as the lookup, and a repeated key is
+    // rejected by the build itself. The empty-changes exit sits after it rather than before: carrying
+    // an unaddressed property through skips the rebuild, never a precondition its shape requires.
+    val byKey = LinkedHashMap<Any?, T>(source.size * 2)
+    source.forEachIndexed { position, element ->
+        val key = keyOf(element)
+        byKey[key] = element
+        // Size, not `put`'s return value: `T` may itself be nullable, and a null element returns null
+        // from `put` whether or not its key was already present, which would let a repeat through and
+        // silently drop an element — the exact loss this check exists to prevent.
+        if (byKey.size != position + 1) duplicateKey(name, keyProperty, key)
+    }
+
+    if (changes.isEmpty()) return Patched(source)
+
     val failures = mutableListOf<PatchFailure>()
-    val byKey = source.associateBy { keyOf(it) }.toMutableMap()
-
-    requireUniqueKeys(name, keyProperty, source, byKey.size, keyOf)
-
-    val order = source.map { keyOf(it) }.toMutableList()
     val moves = mutableMapOf<Any?, Int>()
     val elementChanges = mutableMapOf<Any?, MutableList<Change>>()
 
@@ -125,14 +137,12 @@ public fun <T> patchKeyedList(
         }
         val rest = change.withoutFirstSegment()
         when {
-            change is Removed && rest.path.segments.isEmpty() -> {
-                byKey.remove(key)
-                order.remove(key)
-            }
+            change is Removed && rest.path.segments.isEmpty() -> byKey.remove(key)
             change is Added && rest.path.segments.isEmpty() -> {
+                // A re-`put` leaves an existing key at its original position, which is what an
+                // addition of a key already present should do.
                 @Suppress("UNCHECKED_CAST")
                 byKey[key] = change.value as T
-                if (key !in order) order += key
             }
             change is Moved && rest.path.segments.isEmpty() -> moves[key] = change.to
             else -> elementChanges.getOrPut(key) { mutableListOf() } += rest
@@ -150,7 +160,7 @@ public fun <T> patchKeyedList(
         failures += result.failures
     }
 
-    val positioned = order.filter { it in byKey }
+    val positioned = byKey.keys.toList()
     val target = arrayOfNulls<Any?>(positioned.size)
     val unplaced = mutableListOf<Any?>()
 
@@ -174,6 +184,8 @@ public fun <T> patchPositionalList(
     changes: List<Change>,
     patcher: Patcher<T>?,
 ): Patched<List<T>> {
+    if (changes.isEmpty()) return Patched(source)
+
     val failures = mutableListOf<PatchFailure>()
     val elements = source.toMutableList()
     val removed = sortedSetOf<Int>()
@@ -225,6 +237,8 @@ public fun <T> patchPositionalList(
 
 /** Rebuilds a set by membership: drop removals, add additions, never reorder. */
 public fun <T> patchSet(source: Set<T>, changes: List<Change>): Patched<Set<T>> {
+    if (changes.isEmpty()) return Patched(source)
+
     val failures = mutableListOf<PatchFailure>()
     val elements = source.toMutableSet()
 
@@ -248,6 +262,8 @@ public fun <K, V> patchMap(
     changes: List<Change>,
     patcher: Patcher<V>?,
 ): Patched<Map<K, V>> {
+    if (changes.isEmpty()) return Patched(source)
+
     val failures = mutableListOf<PatchFailure>()
     val entries = source.toMutableMap()
     val entryChanges = mutableMapOf<K, MutableList<Change>>()

@@ -19,7 +19,8 @@ public fun <T> MutableList<Change>.compareNested(
     after: T,
     differ: Differ<T>,
 ) {
-    addAll(differ.diff(before, after).changes.map { it.prefixedWith(Segment.Field(name)) })
+    val field = Segment.Field(name)
+    differ.diff(before, after).changes.forEach { add(it.prefixedWith(field)) }
 }
 
 /**
@@ -42,40 +43,54 @@ public fun <T : Any> MutableList<Change>.compareNestedNullable(
 }
 
 /**
- * Fails when [elements] hold two entries carrying one key.
+ * Rejects a keyed collection holding two elements that carry one key.
  *
  * A keyed comparison has no representable result for a repeated key: a path identifies an element by
  * its key value, so `addresses[id=A1]` could not say which of the two it means, and no change reported
  * there would be actionable. Matching one and discarding the rest loses an element silently, which is
  * what this replaces.
  *
- * [distinctKeys] is the size of a map the caller has already built by key, so the happy path costs one
- * integer comparison. The walk that names the offending key runs only when the check has already
- * failed.
+ * Detection is not here. A caller indexing elements by key learns of the collision from the map it is
+ * already building, so this only names it — leaving the check itself costing one `put` return value
+ * rather than a size comparison and a second walk.
  */
-internal fun <T> requireUniqueKeys(
+internal fun duplicateKey(name: String?, keyProperty: String?, key: Any?): Nothing {
+    // Named for the two routes that have names to give — a generated differ and a `keyedList`
+    // builder. A hand-written patcher calling the helper directly has neither, and a message
+    // built round placeholders reads worse than one that simply omits them.
+    val message = if (name == null || keyProperty == null) {
+        "two elements of a keyed list share the key $key, " +
+            "and a keyed element must be uniquely identified."
+    } else {
+        "$name is keyed by $keyProperty, but two elements share the key $key. " +
+            "A keyed element must be uniquely identified; " +
+            "$name[$keyProperty=$key] cannot name one of them."
+    }
+    throw IllegalArgumentException(message)
+}
+
+/**
+ * Each element's position, by key, in the order the elements appear.
+ *
+ * Insertion-ordered because the map's iteration order is the order changes are reported in, and a
+ * keyed element's identity is the only thing that survives a reorder.
+ */
+internal fun <T> indexByKey(
     name: String?,
     keyProperty: String?,
     elements: List<T>,
-    distinctKeys: Int,
     keyOf: (T) -> Any?,
-) {
-    require(distinctKeys == elements.size) {
-        val seen = HashSet<Any?>(elements.size)
-        val duplicate = elements.map(keyOf).first { !seen.add(it) }
-
-        // Named for the two routes that have names to give — a generated differ and a `keyedList`
-        // builder. A hand-written patcher calling the helper directly has neither, and a message
-        // built round placeholders reads worse than one that simply omits them.
-        if (name == null || keyProperty == null) {
-            "two elements of a keyed list share the key $duplicate, " +
-                "and a keyed element must be uniquely identified."
-        } else {
-            "$name is keyed by $keyProperty, but two elements share the key $duplicate. " +
-                "A keyed element must be uniquely identified; " +
-                "$name[$keyProperty=$duplicate] cannot name one of them."
-        }
+): Map<Any?, Int> {
+    val index = LinkedHashMap<Any?, Int>(elements.size * 2)
+    elements.forEachIndexed { position, element ->
+        val key = keyOf(element)
+        index[key] = position
+        // The map's size rather than `put`'s return value: a map whose values may themselves be null
+        // returns null from `put` whether or not the key was already there, and a repeat would slip
+        // past. Size cannot be fooled, and reading it costs nothing.
+        if (index.size != position + 1) duplicateKey(name, keyProperty, key)
     }
+    return index
 }
 
 /**
@@ -83,7 +98,7 @@ internal fun <T> requireUniqueKeys(
  * that a reordered element reports as moved instead of as a removal and an addition.
  *
  * A key identifies at most one element in each list. Two elements sharing one is an
- * [IllegalArgumentException]: see [requireUniqueKeys] for why such a comparison has no result to
+ * [IllegalArgumentException]: see [duplicateKey] for why such a comparison has no result to
  * report.
  */
 public fun <T> MutableList<Change>.compareKeyedList(
@@ -94,31 +109,28 @@ public fun <T> MutableList<Change>.compareKeyedList(
     differ: Differ<T>,
     keyOf: (T) -> Any?,
 ) {
-    val beforeByKey = before.withIndex().associateBy { keyOf(it.value) }
-    val afterByKey = after.withIndex().associateBy { keyOf(it.value) }
+    val field = Segment.Field(name)
+    val beforeByKey = indexByKey(name, keyProperty, before, keyOf)
+    val afterByKey = indexByKey(name, keyProperty, after, keyOf)
 
-    requireUniqueKeys(name, keyProperty, before, beforeByKey.size, keyOf)
-    requireUniqueKeys(name, keyProperty, after, afterByKey.size, keyOf)
-
-    beforeByKey.forEach { (key, old) ->
-        val new = afterByKey[key]
+    beforeByKey.forEach { (key, oldPosition) ->
         val element = Segment.Key(keyProperty, key)
-        if (new == null) {
-            add(Removed(FieldPath(listOf(element)), old.value).prefixedWith(Segment.Field(name)))
+        val newPosition = afterByKey[key]
+        if (newPosition == null) {
+            add(Removed(FieldPath(listOf(field, element)), before[oldPosition]))
             return@forEach
         }
-        if (old.index != new.index) {
-            add(Moved(FieldPath(listOf(element)), old.index, new.index).prefixedWith(Segment.Field(name)))
+        if (oldPosition != newPosition) {
+            add(Moved(FieldPath(listOf(field, element)), oldPosition, newPosition))
         }
-        differ.diff(old.value, new.value).changes.forEach { change ->
-            add(change.prefixedWith(element).prefixedWith(Segment.Field(name)))
+        differ.diff(before[oldPosition], after[newPosition]).changes.forEach { change ->
+            add(change.prefixedWith(field, element))
         }
     }
 
-    afterByKey.forEach { (key, new) ->
+    afterByKey.forEach { (key, newPosition) ->
         if (key in beforeByKey) return@forEach
-        val element = Segment.Key(keyProperty, key)
-        add(Added(FieldPath(listOf(element)), new.value).prefixedWith(Segment.Field(name)))
+        add(Added(FieldPath(listOf(field, Segment.Key(keyProperty, key))), after[newPosition]))
     }
 }
 
@@ -132,26 +144,27 @@ public fun <T> MutableList<Change>.comparePositionalList(
     after: List<T>,
     differ: Differ<T>?,
 ) {
+    val field = Segment.Field(name)
     val shared = minOf(before.size, after.size)
 
     for (index in 0 until shared) {
         val element = Segment.Index(index)
         if (differ == null) {
             if (before[index] != after[index]) {
-                add(ValueChanged(FieldPath(listOf(element)), before[index], after[index]).prefixedWith(Segment.Field(name)))
+                add(ValueChanged(FieldPath(listOf(field, element)), before[index], after[index]))
             }
             continue
         }
         differ.diff(before[index], after[index]).changes.forEach { change ->
-            add(change.prefixedWith(element).prefixedWith(Segment.Field(name)))
+            add(change.prefixedWith(field, element))
         }
     }
 
     for (index in shared until after.size) {
-        add(Added(FieldPath(listOf(Segment.Index(index))), after[index]).prefixedWith(Segment.Field(name)))
+        add(Added(FieldPath(listOf(field, Segment.Index(index))), after[index]))
     }
     for (index in shared until before.size) {
-        add(Removed(FieldPath(listOf(Segment.Index(index))), before[index]).prefixedWith(Segment.Field(name)))
+        add(Removed(FieldPath(listOf(field, Segment.Index(index))), before[index]))
     }
 }
 
@@ -162,9 +175,11 @@ public fun <T> MutableList<Change>.comparePositionalList(
  * element is indistinguishable from one removed and another added.
  */
 public fun <T> MutableList<Change>.compareSet(name: String, before: Set<T>, after: Set<T>) {
-    val field = Segment.Field(name)
-    (before - after).forEach { add(Removed(FieldPath.ROOT, it).prefixedWith(field)) }
-    (after - before).forEach { add(Added(FieldPath.ROOT, it).prefixedWith(field)) }
+    // Walked rather than subtracted: `before - after` copies the whole receiver into a new set before
+    // removing anything, and membership is all either side is being asked about.
+    val path = FieldPath.of(name)
+    before.forEach { if (it !in after) add(Removed(path, it)) }
+    after.forEach { if (it !in before) add(Added(path, it)) }
 }
 
 /** Compares a map by entry key, delegating to [differ] for values it can descend into. */
@@ -179,19 +194,19 @@ public fun <K, V> MutableList<Change>.compareMap(
     before.forEach { (key, old) ->
         val entry = Segment.Key("key", key)
         if (key !in after) {
-            add(Removed(FieldPath(listOf(entry)), old).prefixedWith(field))
+            add(Removed(FieldPath(listOf(field, entry)), old))
             return@forEach
         }
         val new = after.getValue(key)
         if (differ == null) {
-            if (old != new) add(ValueChanged(FieldPath(listOf(entry)), old, new).prefixedWith(field))
+            if (old != new) add(ValueChanged(FieldPath(listOf(field, entry)), old, new))
             return@forEach
         }
-        differ.diff(old, new).changes.forEach { add(it.prefixedWith(entry).prefixedWith(field)) }
+        differ.diff(old, new).changes.forEach { add(it.prefixedWith(field, entry)) }
     }
 
     after.forEach { (key, new) ->
         if (key in before) return@forEach
-        add(Added(FieldPath(listOf(Segment.Key("key", key))), new).prefixedWith(field))
+        add(Added(FieldPath(listOf(field, Segment.Key("key", key))), new))
     }
 }

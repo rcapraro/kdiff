@@ -34,6 +34,7 @@ internal val BUILD_LIST = MemberName("kotlin.collections", "buildList")
 
 internal val PATCHER = ClassName(RUNTIME, "Patcher")
 internal val PATCH_RESULT = ClassName(RUNTIME, "PatchResult")
+internal val PATCH_FAILURE = ClassName(RUNTIME, "PatchFailure")
 
 internal val GROUP_BY_PROPERTY = MemberName(RUNTIME, "groupByProperty")
 internal val UNMATCHED_FAILURES = MemberName(RUNTIME, "unmatchedFailures")

@@ -82,13 +82,4 @@ public fun groupByProperty(changes: List<Change>, properties: Set<String>): Grou
 public fun GroupedChanges.unmatchedFailures(type: String): List<PatchFailure> =
     unmatched.map { PatchFailure(it, "$type has no compared property at this path") }
 
-internal fun Change.withoutFirstSegment(): Change =
-    withPath(FieldPath(path.segments.drop(1)))
-
-private fun Change.withPath(path: FieldPath): Change = when (this) {
-    is ValueChanged -> copy(path = path)
-    is Added -> copy(path = path)
-    is Removed -> copy(path = path)
-    is TypeChanged -> copy(path = path)
-    is Moved -> copy(path = path)
-}
+internal fun Change.withoutFirstSegment(): Change = withPath(path.withoutFirst())

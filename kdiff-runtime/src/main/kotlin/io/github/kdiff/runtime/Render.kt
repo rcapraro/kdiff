@@ -5,10 +5,11 @@ private const val NO_CHANGES = "no changes"
 internal fun renderChanges(changes: List<Change>): String {
     if (changes.isEmpty()) return NO_CHANGES
 
-    val width = changes.maxOf { it.path.toString().length }
-    return changes.joinToString("\n") { change ->
-        "${change.path.toString().padEnd(width)}  ${change.describe()}"
-    }
+    val paths = changes.map { it.path.toString() }
+    val width = paths.maxOf { it.length }
+    return changes.mapIndexed { index, change ->
+        "${paths[index].padEnd(width)}  ${change.describe()}"
+    }.joinToString("\n")
 }
 
 private fun Change.describe(): String = when (this) {

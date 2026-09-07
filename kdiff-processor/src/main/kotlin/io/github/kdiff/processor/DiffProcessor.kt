@@ -21,6 +21,8 @@ import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.LIST
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
+import com.squareup.kotlinpoet.SET
+import com.squareup.kotlinpoet.STRING
 import com.squareup.kotlinpoet.TypeSpec
 import com.squareup.kotlinpoet.ksp.toClassName
 import com.squareup.kotlinpoet.ksp.writeTo
@@ -104,17 +106,33 @@ public class DiffProcessor(
         val sources = mutableSetOf<KSFile>()
         containingFile?.let(sources::add)
 
-        val body = if (isSealedType()) sealedBody(sources) else dataClassBody(sources)
+        val sealed = isSealedType()
+
+        val body = if (sealed) sealedBody(sources) else dataClassBody(sources)
         if (body == null) return
 
-        val comparisons = if (isSealedType()) emptyList() else resolvedProperties(sources) ?: return
-        val applyBody = if (isSealedType()) sealedApplyBody() else dataClassApplyBody(target, comparisons)
+        val comparisons = if (sealed) emptyList() else resolvedProperties(sources) ?: return
+        val applyBody = if (sealed) sealedApplyBody() else dataClassApplyBody(target, comparisons)
 
         val trackScope = resolveTrackScope()
 
         val differ = TypeSpec.objectBuilder(differName(target).simpleName)
             .addSuperinterface(DIFFER.parameterizedBy(target))
             .addSuperinterface(PATCHER.parameterizedBy(target))
+            .apply {
+                // A constant of the type, so it is built once rather than on every `apply` call.
+                // Private: it is an implementation detail of reconstruction, not generated API.
+                // A sealed type reconstructs through its subclass's patcher and never groups.
+                if (sealed) return@apply
+                addProperty(
+                    PropertySpec.builder("comparedProperties", SET.parameterizedBy(STRING), KModifier.PRIVATE)
+                        .initializer(
+                            "setOf(%L)",
+                            comparisons.joinToString { (property, _) -> "\"${property.simpleName.asString()}\"" },
+                        )
+                        .build(),
+                )
+            }
             .apply {
                 if (trackScope == null) return@apply
                 addSuperinterface(TRACKED.parameterizedBy(target))
@@ -250,7 +268,7 @@ public class DiffProcessor(
         val names = comparisons.map { (property, _) -> property.simpleName.asString() }
 
         val body = CodeBlock.builder()
-            .add("val grouped = %M(changes, setOf(%L))\n", GROUP_BY_PROPERTY, names.joinToString { "\"$it\"" })
+            .add("val grouped = %M(changes, comparedProperties)\n", GROUP_BY_PROPERTY)
 
         comparisons.forEach { (property, comparison) ->
             body.add(emitPatch(property, comparison, property.simpleName.asString() in constructorParameters))
@@ -265,8 +283,12 @@ public class DiffProcessor(
             patchable.forEach { body.add("%N = %N.value,\n", it, "${it}Patched") }
             body.unindent().add("),\n")
         }
-        val failures = listOf("grouped.%M(%S)") + names.map { "${it}Patched.failures" }
-        body.add(failures.joinToString(" + ") + ",\n", UNMATCHED_FAILURES, target.simpleName)
+        // One list rather than a left-fold of `+`, which copies a new list per property and, in the
+        // common case where nothing failed, allocates one per property to produce an empty result.
+        body.add("%M<%T> {\n", BUILD_LIST, PATCH_FAILURE).indent()
+        body.add("addAll(grouped.%M(%S))\n", UNMATCHED_FAILURES, target.simpleName)
+        names.forEach { body.add("addAll(%N.failures)\n", "${it}Patched") }
+        body.unindent().add("},\n")
         body.unindent().add(")\n")
 
         return body.build()

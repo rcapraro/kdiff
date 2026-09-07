@@ -1,5 +1,7 @@
 package io.github.kdiff.runtime
 
+import java.util.Collections
+import java.util.IdentityHashMap
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty1
 
@@ -144,11 +146,34 @@ public class ChangeRoutes<T> internal constructor() {
 
     /** Dispatches [changes], returning those neither a handler nor [otherwise] accounted for. */
     internal fun dispatch(changes: List<Change>): List<Change> {
-        val unroutable = handlers.flatMap { (property, handler) ->
-            changes.filter { it.path.rootName() == property }.takeIf { it.isNotEmpty() }?.let(handler).orEmpty()
+        // Grouped once rather than filtered once per handler; appending in change order is what gives
+        // each handler its changes in the order the diff reports them, so the map's own iteration
+        // order is never read. Only what a handler named is grouped: everything else is unhandled by
+        // the test below, and gathering it here would build a list for changes no handler is shown.
+        val byProperty = HashMap<String, MutableList<Change>>()
+        changes.forEach { change ->
+            val root = change.path.rootName() ?: return@forEach
+            if (root in handlers) byProperty.getOrPut(root) { mutableListOf() } += change
         }
 
-        val unhandled = changes.filter { it.path.rootName() !in handlers || it in unroutable }
+        // Identity, not equality: a handler hands back the very changes it declined, and `under`
+        // already matches returned changes to given ones by reference, so this agrees with it. Built
+        // only once something is actually declined, which for a routing whose handlers accept
+        // everything is never.
+        var unroutable: MutableSet<Change>? = null
+        handlers.forEach { (property, handler) ->
+            val forProperty = byProperty[property] ?: return@forEach
+            val declined = handler(forProperty)
+            if (declined.isEmpty()) return@forEach
+            val seen = unroutable ?: Collections.newSetFromMap(IdentityHashMap<Change, Boolean>())
+                .also { unroutable = it }
+            seen += declined
+        }
+
+        val declined = unroutable
+        val unhandled = changes.filter {
+            it.path.rootName() !in handlers || (declined != null && it in declined)
+        }
         if (unhandled.isEmpty()) return emptyList()
 
         // A fallback consumes what it is given; without one the caller decides, which is how a frame
@@ -253,16 +278,11 @@ public class KeyedElementRoutes<E : Any, K : Any> @PublishedApi internal constru
  * This change with the first segment of its path dropped, so a routing frame can dispatch it against
  * the type it reached.
  *
- * Exhaustive by construction, like `Change.sides()`: a sixth [Change] variant fails to compile here
- * rather than losing its location in silence.
+ * The descent reconstruction also performs, and the same one: both go through `Change.withPath`, which
+ * holds the single exhaustive `when` a sixth [Change] variant would have to be added to. Spelling it
+ * out again here would mean a variant could be added to one copy and forgotten in the other.
  */
-internal fun Change.withoutRoot(): Change = when (this) {
-    is ValueChanged -> copy(path = path.withoutFirst())
-    is Added -> copy(path = path.withoutFirst())
-    is Removed -> copy(path = path.withoutFirst())
-    is TypeChanged -> copy(path = path.withoutFirst())
-    is Moved -> copy(path = path.withoutFirst())
-}
+internal fun Change.withoutRoot(): Change = withPath(path.withoutFirst())
 
 /** `KClass.safeCast` without `kotlin-reflect`: the cast `isInstance` has already made safe. */
 @Suppress("UNCHECKED_CAST")

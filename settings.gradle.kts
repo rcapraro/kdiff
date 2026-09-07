@@ -24,4 +24,5 @@ include(
     "kdiff-processor",
     "kdiff-sample",
     "kdiff-tutorial",
+    "kdiff-benchmarks",
 )

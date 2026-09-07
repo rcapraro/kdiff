@@ -45,9 +45,12 @@ public class Tracker<T> internal constructor(
 
         if (selected.isEmpty()) return Diff(selected)
 
-        selected.forEach { change ->
-            val (before, after) = change.sides()
-            fieldListeners.forEach { it(change.path, before, after) }
+        if (fieldListeners.isNotEmpty()) {
+            selected.forEach { change ->
+                change.withSides { before, after ->
+                    fieldListeners.forEach { it(change.path, before, after) }
+                }
+            }
         }
         changeListeners.forEach { it(previous, next, selected) }
 

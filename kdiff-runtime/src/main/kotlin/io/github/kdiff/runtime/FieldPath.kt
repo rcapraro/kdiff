@@ -24,12 +24,32 @@ public sealed interface Segment {
  * Where in an object graph a [Change] was found, as a path from the root being diffed.
  *
  * An empty path denotes the root object itself.
+ *
+ * [segments] is taken as given rather than copied — a `FieldPath` is a value over that list — and a
+ * path derived from this one may share its storage. So a caller constructing a `FieldPath` hands the
+ * list over: mutating it afterwards changes this path and any path derived from it. Every path the
+ * library builds is over a list it allocated for the purpose.
  */
 @JvmInline
 public value class FieldPath(public val segments: List<Segment>) {
 
     /** This path with [segment] inserted at the front, used when a nested differ's result is lifted into its parent. */
-    public fun prefixedWith(segment: Segment): FieldPath = FieldPath(listOf(segment) + segments)
+    // Built rather than `listOf(segment) + segments`, which allocates a singleton list and then copies
+    // it into a second one. Lifting happens once per change per level of nesting, so it is the runtime's
+    // most repeated allocation.
+    public fun prefixedWith(segment: Segment): FieldPath =
+        FieldPath(ArrayList<Segment>(segments.size + 1).also { it += segment; it += segments })
+
+    /**
+     * This path with [outer] and then [inner] inserted at the front, in one copy rather than two.
+     *
+     * A collection helper lifts a nested change twice — under the element and then under the property
+     * — and doing it in one step halves both the copying and the intermediate `Change` instances.
+     * Internal because [prefixedWith] is the lifting contract a `Change` states; this is the shortcut
+     * its only two-segment callers take.
+     */
+    internal fun prefixedWith(outer: Segment, inner: Segment): FieldPath =
+        FieldPath(ArrayList<Segment>(segments.size + 2).also { it += outer; it += inner; it += segments })
 
     /**
      * This path with its first segment dropped, the descent [prefixedWith] is the ascent of.
@@ -39,7 +59,15 @@ public value class FieldPath(public val segments: List<Segment>) {
      * its nested results, which is a contract, while descending is how one routing reads another's
      * paths.
      */
-    internal fun withoutFirst(): FieldPath = FieldPath(segments.drop(1))
+    // A view rather than `drop(1)`'s copy: applying a diff descends once per level, so copying here
+    // costs a change `d` levels deep `O(d²)` segment copies. Sharing the parent's storage is the
+    // constructor's stated contract, and every path the library builds is over a list it allocated.
+    //
+    // The root path is returned as itself: `drop` tolerates having nothing to drop, `subList` does not,
+    // and descending from the root is reachable — a routing frame re-roots a change reported at the
+    // property it frames.
+    internal fun withoutFirst(): FieldPath =
+        if (segments.isEmpty()) this else FieldPath(segments.subList(1, segments.size))
 
     /**
      * The property this path begins with, or null when it begins with no property.
