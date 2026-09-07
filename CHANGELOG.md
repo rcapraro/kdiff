@@ -11,6 +11,12 @@ entry written for someone deciding whether to upgrade.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-07
+
+What changes here is `kdiff-runtime`'s API. No annotation means anything different, the processor is
+untouched, and an annotated class compiles to byte-identical generated code — so upgrading is a
+recompile of the code you wrote *around* the generated code, guided by the breaking items below.
+
 ### Added
 
 - **A diff is a collection.** `Diff` implements `Iterable<Change>` and gains `size`, `isNotEmpty()`,
@@ -202,7 +208,8 @@ First release.
 
 - JDK 17 or later; built against a JVM 21 toolchain, Kotlin 2.4.10 and KSP 2.3.11.
 
-[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/rcapraro/kdiff/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/rcapraro/kdiff/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/rcapraro/kdiff/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rcapraro/kdiff/compare/v0.1.0...v0.2.0
