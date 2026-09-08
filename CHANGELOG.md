@@ -11,6 +11,43 @@ entry written for someone deciding whether to upgrade.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-08
+
+One comparison behaves differently and nothing else moves: `kdiff-runtime` compares an unkeyed list by
+excluding the tail the two sides already agree on. No signature changed, no annotation means anything
+different, the processor is untouched, and an annotated class compiles to byte-identical generated
+code — so upgrading is a re-baselining of assertions over unkeyed lists that change length, and nothing
+else.
+
+### Changed
+
+- **BREAKING** — an unkeyed list whose length differs between the two sides now reports the insertion
+  or deletion instead of a cascade. Before comparing, kdiff excludes the tail the two lists already
+  agree on, so one contiguous edit — at the head, in the middle, or at the tail — reports as exactly
+  those additions or removals.
+
+  ```
+  before = ["a", "b", "c"]        was                            now
+  after  = ["x", "a", "b", "c"]     3 value changes + 1 addition   1 addition, at index 0
+  ```
+
+  Nothing in the API moved: no signature changed, no annotation means anything different, the
+  processor is untouched and generated code is byte-identical. What changed is the *content* of the
+  diff for that one case.
+
+  *Migration*: re-baseline assertions over unkeyed lists that change length. **Two lists of the same
+  length are unaffected** — they are still compared index by index, and that is now a stated guarantee
+  rather than an accident, because for a fixed-arity list (seven weekday slots, a coordinate triple, a
+  three-place ranking) the index *is* the element's identity.
+
+  Two scattered edits still smear: `["a","b","c"] -> ["x","a","b","c2"]` agrees at neither end, and
+  recovering it would need the edit-distance search kdiff's linear bound rules out. `@DiffKey` remains
+  the answer wherever elements have an identity.
+
+  A position is excluded only when comparing it would report nothing — equality where elements are
+  compared as values, the differ reporting no change where they are compared by a differ. A type whose
+  `equals` is looser than the properties its differ reads is therefore still compared in full.
+
 ## [0.4.0] - 2026-09-07
 
 What changes here is `kdiff-runtime`'s API. No annotation means anything different, the processor is
@@ -208,7 +245,8 @@ First release.
 
 - JDK 17 or later; built against a JVM 21 toolchain, Kotlin 2.4.10 and KSP 2.3.11.
 
-[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/rcapraro/kdiff/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rcapraro/kdiff/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/rcapraro/kdiff/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/rcapraro/kdiff/compare/v0.2.0...v0.3.0
