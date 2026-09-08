@@ -99,6 +99,24 @@ or `<!-- illustrative -->` if it is consumer-side code this repository has no fi
 a sample drifts from the code it claims to show. An unmarked block also fails the build, so the escape
 hatch stays visible.
 
+Two page-level conventions follow from that, because a page a reader copies from is the last place an
+unchecked block belongs:
+
+- **A recipe in `docs/how-to.md` is a test, not prose.** Add it to `RecipesSpec` in `kdiff-sample`
+  first, then cite it with a `from:` marker. Reaching for `illustrative` there would put the code a
+  reader copies first back outside the harness, which is the drift this spec exists to catch.
+- **`docs/errors.md` quotes message text verbatim**, copied from the source rather than written from
+  memory. The messages live in `DiffProcessor.kt` (compile-time diagnostics), `Dsl.kt`,
+  `TrackScope.kt` and `Route.kt` (construction-time `require`s), and `Patcher.kt` and `Errors.kt`
+  (failure sentences and the declared exceptions).
+
+  **Nothing checks that page against them.** A diagnostic string in a Markdown table is not a fenced
+  Kotlin block, so `DocumentationSamplesSpec` cannot reach it. Most messages *are* asserted somewhere —
+  `DiagnosticSpec`, `RouteSpec`, `TrackScopeCompositionSpec`, `PatchFailureCaseSpec`,
+  `CyclicStructureSpec` — but several are asserted only as substrings, or against the same constant the
+  production code uses, and a handful are not asserted at all. So a reworded message can leave `check`
+  green and the page wrong. **If you reword a message, search `docs/errors.md` for the old text.**
+
 The same spec pins the published version. Every `io.github.kdiff:<module>:<version>` on a documentation
 page — this one included, in a fenced block, a shell snippet or plain prose — must name the version the
 build publishes,

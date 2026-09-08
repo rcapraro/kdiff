@@ -183,15 +183,16 @@ val AddressDiffer = differ<Address> {
 
 ## Documentation
 
-| Guide | Covers |
-|---|---|
-| [**Tutorial**](docs/tutorial.md) | A worked DDD application: an annotation-free domain, commands diffed into domain events, and the same model annotated |
-| [Diffing](docs/diffing.md) | `@Diffable`, the change vocabulary, paths, routing, collections, maps, sealed types |
-| [Patching](docs/patching.md) | Applying a diff, failures, the round-trip property |
-| [Tracking](docs/tracking.md) | `@Trackable`, trackers, scopes, depth, callbacks |
-| [Hand-written differs and scopes](docs/hand-written.md) | `differ { }` and `trackScope { }` for types you cannot annotate |
-| [Annotation reference](docs/annotations.md) | All seven annotations, their parameters, and what they reject |
-| [Architecture](docs/architecture.md) | The module graph and why the API is shaped the way it is |
+The full documentation is in **[docs/](docs/README.md)**. Three routes in:
+
+- **Learning it** — [the tutorial](docs/tutorial.md) builds a DDD application: an annotation-free
+  domain, commands diffed into domain events, and the same model annotated.
+- **Using it** — [how do I…](docs/how-to.md) for recipes, [errors](docs/errors.md) for any message
+  kdiff produces, [the FAQ](docs/faq.md) for the rest.
+- **Looking something up** — [diffing](docs/diffing.md), [patching](docs/patching.md),
+  [tracking](docs/tracking.md), [hand-written differs](docs/hand-written.md),
+  [annotations](docs/annotations.md), and [architecture](docs/architecture.md) for why it is shaped
+  this way.
 
 ## Status
 

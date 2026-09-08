@@ -243,6 +243,7 @@ the library's ergonomics test.
 
 ## Where to go next
 
+- [FAQ](faq.md) — several of this page's decisions, as the questions they get asked as
 - [Tutorial](tutorial.md) — the reasoning here, applied to a whole domain
 - [Diffing](diffing.md) — the change model this page describes, in use
 - [Hand-written differs and scopes](hand-written.md) — the "does it construct?" axis at the call site

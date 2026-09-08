@@ -490,6 +490,8 @@ See [hand-written.md](hand-written.md) for the `@DiffWith` escape hatch, and
 
 ## Where to go next
 
+- [How do I…](how-to.md) — comparing, auditing and routing as recipes lifted from tests
+- [Errors](errors.md) — the duplicate-key and cyclic-structure refusals this page describes
 - [Patching](patching.md) — turning the changes you have just read back into an object
 - [Tracking](tracking.md) — reporting only the changes worth reacting to
 - [Hand-written differs and scopes](hand-written.md) — describing a type you cannot annotate

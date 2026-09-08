@@ -257,6 +257,8 @@ generated differ, because it is made of the same parts.
 
 ## Where to go next
 
+- [How do I…](how-to.md) — the recipes that cite this page's differs, including a custom comparison
+- [Errors](errors.md) — what an empty `differ { }` and a contradictory scope are rejected with
 - [Tutorial](tutorial.md) — a whole domain described this way, with an annotated mirror held to the
   same output
 - [Diffing](diffing.md) — the comparison rules each builder call implements

@@ -84,6 +84,10 @@ failure — when any did not.
 
 ## What produces a failure
 
+The three below are the ones that carry the concept. All fourteen cases are documented in
+[errors.md](errors.md#3-changes-that-did-not-apply), grouped by the five causes they fall into — that
+page is the complete list.
+
 **A property that is not a constructor parameter.** Reconstruction goes through `copy`, so a
 property declared in the class body cannot be rebuilt. The reason says so rather than silently
 dropping the change.
@@ -166,6 +170,8 @@ reports nothing. That is consistent with diffing: what is not compared is not re
 
 ## Where to go next
 
+- [Errors](errors.md) — all fourteen failure reasons, grouped by what to do about each
+- [How do I…](how-to.md) — requiring the whole patch, and handling failures by cause
 - [Hand-written differs and scopes](hand-written.md) — writing the `Patcher` a builder cannot generate,
   and making a `@DiffWith` property patchable
 - [Diffing](diffing.md) — where the changes being applied come from

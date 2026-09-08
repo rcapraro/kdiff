@@ -445,6 +445,7 @@ same changes, at the same paths, in the same order.
 
 ## Where to go next
 
+- [How do I…](how-to.md) — the pieces of this application as standalone recipes
 - [Diffing](diffing.md) — the change vocabulary, paths, routing and every comparison rule
 - [Patching](patching.md) — applying a diff back, and what makes a change unpatchable
 - [Tracking](tracking.md) — scopes, depth and `trackedDiff` in full

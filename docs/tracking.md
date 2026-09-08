@@ -261,6 +261,8 @@ A scope can be built by hand for a type whose source you do not own — see
 
 ## Where to go next
 
+- [How do I…](how-to.md) — callbacks, narrowed scopes and selective propagation as recipes
+- [FAQ](faq.md) — the depth questions this page's rule is most often asked as
 - [Hand-written differs and scopes](hand-written.md) — `trackScope { }`, and why tracking needs no
   escape hatch of its own
 - [Diffing](diffing.md) — `route` decides what a reported change *means*

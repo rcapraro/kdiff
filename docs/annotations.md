@@ -84,6 +84,9 @@ other's copy. Import whichever your file already depends on.
 Every one of these is a `KSPLogger` error reported at the offending declaration, so an IDE and a build
 log both point at the right line. Unsupported shapes are never silent fallbacks.
 
+The table paraphrases what each message says. For the message text itself — searchable, as it appears
+in your build log — see [errors.md](errors.md#1-compile-time), which is the complete list.
+
 | Rejected | Error says |
 |---|---|
 | `@Diffable` on a non-data, non-sealed declaration | names it and what `@Diffable` accepts |
@@ -109,6 +112,7 @@ Each row above corresponds to a requirement in `openspec/specs/diff-generation/s
 
 ## Where to go next
 
+- [Errors](errors.md) — the message text behind every rejection tabulated above
 - [Diffing](diffing.md) — what `@Diffable` generates and how each shape is compared
 - [Tracking](tracking.md) — what `@Trackable` declares, and the depth these annotations carry
 - [Hand-written differs and scopes](hand-written.md) — the route for a type you cannot annotate at all
