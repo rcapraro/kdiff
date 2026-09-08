@@ -38,7 +38,7 @@ One call per comparison shape, and between them they cover everything `@Diffable
 |---|---|---|
 | `field(p)` | by value | a scalar or enum property |
 | `nested(p, differ)` | by delegating, nullable or not | a `@Diffable` property type |
-| `list(p, differ?)` | index by index; never a move | a `List` whose element declares no key |
+| `list(p, differ?)` | by position, after excluding an agreeing tail; never a move | a `List` whose element declares no key |
 | `keyedList(p, key, differ)` | by element identity; a reorder is a move | a `List` whose element declares `@DiffKey` |
 | `set(p)` | as unordered membership | a `Set` |
 | `map(p, values?)` | by entry key | a `Map` |

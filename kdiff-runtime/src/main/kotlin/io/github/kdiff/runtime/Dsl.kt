@@ -61,7 +61,9 @@ public class DifferBuilder<T> @PublishedApi internal constructor() {
     }
 
     /**
-     * Compares [property] index by index, descending into elements with [differ] when one is given.
+     * Compares [property] by position, excluding the tail the two lists already agree on so that one
+     * contiguous insertion or deletion reports as such rather than shifting every element after it.
+     * Descends into elements with [differ] when one is given.
      *
      * A move is never reported: with no key there is nothing to recognise a moved element by. Name a
      * key with [keyedList] to get moves.

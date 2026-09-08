@@ -144,7 +144,7 @@ Every collection comparison is a small, fixed number of passes, and none of them
 | Shape | How it is compared | Cost |
 |---|---|---|
 | keyed list | one `associateBy` per side, then one pass per side over the resulting maps | linear |
-| positional list | one pass to the shorter length, then the leftover tail | linear |
+| positional list | one pass backward from the end, then one pass over the window that remains | linear |
 | set | two set differences, `before - after` and `after - before` | linear |
 | map | one pass over each side, with a lookup into the other | linear |
 
@@ -165,10 +165,18 @@ which is readable in `Compare.kt`, not a measurement.
 Worth knowing before adopting it, because none of these is a bug to be fixed later — each is the other
 side of a decision on this page.
 
-**An unkeyed list is compared position by position.** Insert an element at the head and every following
-position reports as changed, plus one addition at the tail. There is no edit-distance matching to fall
-back on — that is the cost of the linear bound above. `@DiffKey` on the element type is the answer, and
-it is why keyed lists are the shape the library is built around.
+**An unkeyed list is matched by position, not by content.** kdiff excludes the tail the two lists
+already agree on and compares only what remains, so one contiguous insertion or deletion — at the head,
+in the middle, or at the tail — reports as exactly those additions or removals. Two scattered edits do
+not: `[A,B,C] -> [X,A,B,C']` agrees at neither end and smears again, because recovering that would need
+the edit-distance search the linear bound rules out. `@DiffKey` on the element type remains the answer
+wherever elements have an identity, and it is why keyed lists are the shape the library is built
+around.
+
+Two lists of the *same length* are always compared index by index, whatever their contents. For a
+fixed-arity list — seven weekday slots, a coordinate triple, a three-place ranking — the index **is**
+the element's identity, and that guarantee is what stops kdiff reporting an addition and a removal for
+what is a change of position.
 
 **Custom comparison is per property, not per type.** `@DiffWith` points one property at one differ.
 Comparing every `BigDecimal` in a model by `compareTo` rather than `equals` means an annotation at each

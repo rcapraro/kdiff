@@ -363,9 +363,12 @@ will differ, so this cannot be a compile error. If your key genuinely is not uni
 identity — drop `@DiffKey` (or describe the property with `list` rather than `keyedList`) and the list
 is compared by position instead, giving up moves.
 
-**Without a key**, elements are compared index by index. Trailing indices present on only one side
-report as added or removed. A move is never reported — with no key there is nothing to recognise a
-moved element by.
+**Without a key**, elements are matched by position after the tail the two lists already agree on is
+excluded, so one contiguous insertion or deletion reports as exactly that rather than shifting
+everything after it. A removal is reported at its index in the old list and an addition at its index in
+the new one; an element change always names a position *both* lists hold, and one comparison reports
+additions or removals but never both. Two lists of the same length are always compared index by index.
+A move is never reported — with no key there is nothing to recognise a moved element by.
 
 ## Sets
 

@@ -240,6 +240,51 @@ class PatchPositionalListSpec :
 
             patched.value shouldContainExactly listOf("a")
         }
+
+        // The comparison now reports an interior addition or removal, which reaches a branch of the
+        // replay nothing produced before: element changes and removals against the source's positions,
+        // then insertions against the target's, ascending.
+        fun roundTrip(before: List<String>, after: List<String>): List<String> {
+            val changes = buildList { comparePositionalList("tags", before, after, differ = null) }
+                .map { it.withoutFirstSegment() }
+            val patched = patchPositionalList(before, changes, null)
+
+            patched.failures.shouldBeEmpty()
+            return patched.value
+        }
+
+        test("an element inserted at the head round-trips") {
+            roundTrip(listOf("a", "b", "c"), listOf("x", "a", "b", "c")) shouldContainExactly
+                listOf("x", "a", "b", "c")
+        }
+
+        test("a run inserted in the middle round-trips") {
+            roundTrip(listOf("a", "b", "c"), listOf("a", "x", "y", "b", "c")) shouldContainExactly
+                listOf("a", "x", "y", "b", "c")
+        }
+
+        test("a run removed from the middle round-trips") {
+            roundTrip(listOf("a", "x", "y", "b", "c"), listOf("a", "b", "c")) shouldContainExactly
+                listOf("a", "b", "c")
+        }
+
+        test("an insertion and a later element change round-trip together") {
+            roundTrip(listOf("a", "b", "c"), listOf("x", "a", "b", "c2")) shouldContainExactly
+                listOf("x", "a", "b", "c2")
+        }
+
+        test("a list of nested elements gaining a head element round-trips") {
+            val kept = Entry("1", "one")
+            val before = listOf(kept)
+            val after = listOf(Entry("9", "nine"), kept)
+
+            val changes = buildList { comparePositionalList("entries", before, after, EntryPatcher) }
+                .map { it.withoutFirstSegment() }
+            val patched = patchPositionalList(before, changes, EntryPatcher)
+
+            patched.failures.shouldBeEmpty()
+            patched.value shouldContainExactly after
+        }
     })
 
 class PatchSetSpec :

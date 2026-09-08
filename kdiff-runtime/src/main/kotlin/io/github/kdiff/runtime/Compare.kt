@@ -127,17 +127,40 @@ public fun <T> MutableList<Change>.compareKeyedList(
 }
 
 /**
- * Compares a list whose elements carry no identity, index by index. A move is never reported: with
- * no key there is nothing to recognise a moved element by.
+ * Whether comparing these two elements would report nothing.
+ *
+ * The comparison the caller would otherwise have performed — equality for elements compared as values,
+ * [differ] reporting no change for elements it descends into — and never equality standing in for a
+ * differ. A type's `equals` can be looser than the properties its differ reads: an entity equal by
+ * identity, or a compared property the generated `equals` does not cover. Excluding a position on
+ * equality alone would drop a change the comparison would have reported, silently.
  */
-public fun <T> MutableList<Change>.comparePositionalList(
-    name: String,
+private fun <T> agrees(old: T, new: T, differ: Differ<T>?): Boolean =
+    if (differ == null) old == new else differ.diff(old, new).isEmpty()
+
+/**
+ * How many trailing positions the two lists agree on, taken one from the end of each.
+ *
+ * Bounded by the shorter list, which is the only guard needed: no leading run is excluded, because
+ * the window's own walk already reports nothing across leading positions the two lists agree on.
+ */
+private fun <T> agreeingTail(before: List<T>, after: List<T>, differ: Differ<T>?): Int {
+    var count = 0
+    val bound = minOf(before.size, after.size)
+    while (count < bound && agrees(before[before.size - 1 - count], after[after.size - 1 - count], differ)) {
+        count++
+    }
+    return count
+}
+
+private fun <T> MutableList<Change>.compareWindow(
+    field: Segment.Field,
     before: List<T>,
     after: List<T>,
     differ: Differ<T>?,
 ) {
-    val field = Segment.Field(name)
-    val shared = minOf(before.size, after.size)
+    val agreeing = agreeingTail(before, after, differ)
+    val shared = minOf(before.size, after.size) - agreeing
 
     if (differ == null) {
         for (index in 0 until shared) {
@@ -146,22 +169,59 @@ public fun <T> MutableList<Change>.comparePositionalList(
             }
         }
     } else {
-        Descent.into(field, before) {
-            for (index in 0 until shared) {
-                val element = Segment.Index(index)
-                differ.diff(before[index], after[index]).changes.forEach { change ->
-                    add(change.prefixedWith(field, element))
-                }
+        for (index in 0 until shared) {
+            val element = Segment.Index(index)
+            differ.diff(before[index], after[index]).changes.forEach { change ->
+                add(change.prefixedWith(field, element))
             }
         }
     }
 
-    for (index in shared until after.size) {
+    for (index in shared until after.size - agreeing) {
         add(Added(FieldPath(listOf(field, Segment.Index(index))), after[index]))
     }
-    for (index in shared until before.size) {
+    for (index in shared until before.size - agreeing) {
         add(Removed(FieldPath(listOf(field, Segment.Index(index))), before[index]))
     }
+}
+
+/**
+ * Compares a list whose elements carry no identity, by position, after excluding the tail the two
+ * lists already agree on — so one contiguous insertion or deletion reports as exactly that rather than
+ * shifting every element after it.
+ *
+ * A removal is reported at its index in [before] and an addition at its index in [after], which is what
+ * makes the result applicable: `patchPositionalList` removes against the source's own positions and
+ * inserts against the target's.
+ *
+ * The two coordinates never have to disagree for an element change. Additions and removals begin
+ * exactly where element changes stop, so an element change always names a position **both** lists
+ * hold, and one comparison reports additions or removals but never both.
+ *
+ * Two lists of the same length are compared index by index, always. Excluding an agreeing tail from
+ * two lists of equal length cannot change which positions are paired or what is reported at them, so
+ * this is a guarantee rather than a coincidence: for a fixed-arity list the index *is* the element's
+ * identity, and nothing here overrides it.
+ *
+ * A move is never reported: with no key there is nothing to recognise a moved element by.
+ */
+public fun <T> MutableList<Change>.comparePositionalList(
+    name: String,
+    before: List<T>,
+    after: List<T>,
+    differ: Differ<T>?,
+) {
+    val field = Segment.Field(name)
+
+    // Elements compared as opaque values cannot recurse, so they take no descent step. Elements a
+    // differ descends into take one step for the whole list — the tail scan included, since that scan
+    // runs the same differ — for the reason `compareKeyedList` takes one: what is bounded is
+    // recursion, and a nested level enters this helper exactly once however many elements it holds.
+    if (differ == null) {
+        compareWindow(field, before, after, null)
+        return
+    }
+    Descent.into(field, before) { compareWindow(field, before, after, differ) }
 }
 
 /**

@@ -53,6 +53,13 @@ A property excluded from comparison SHALL keep the source instance's value, sinc
 ever reported for it. The round-trip is therefore over the compared properties, which is what a
 diff describes.
 
+For a list compared by position, the round-trip SHALL hold for an addition or a removal anywhere in
+the list, not only past its end. Applying SHALL replay element changes and removals against the
+source's own positions, and insertions against the target's, in that order and with insertions applied
+in ascending index. This ordering is what lets a change and an insertion in the same list both be
+addressed by index without either invalidating the other's position, and it is why the comparison
+reports a removal at its index in the old list and an addition at its index in the new one.
+
 A property that no change addresses SHALL be carried through rather than rebuilt, whatever its shape.
 Applying SHALL NOT reconstruct a value, a nested value, a list, a set or a map that nothing in the
 change list is addressed to; the source instance's own value SHALL appear in the result. So a
@@ -106,6 +113,33 @@ through unexamined rather than rebuilt. Nothing is lost by this, because nothing
 
 - **WHEN** two instances differ by a changed element and a different list length
 - **THEN** applying their diff reproduces the target list
+
+#### Scenario: Round-trip over an unkeyed list with an element inserted at the head
+
+- **WHEN** the source list is `["a", "b", "c"]` and the target list is `["x", "a", "b", "c"]`
+- **THEN** applying their diff reproduces the target list exactly, including element order
+
+#### Scenario: Round-trip over an unkeyed list with a run inserted in the middle
+
+- **WHEN** the source list is `["a", "b", "c"]` and the target list is `["a", "x", "y", "b", "c"]`
+- **THEN** applying their diff reproduces the target list exactly, including element order
+
+#### Scenario: Round-trip over an unkeyed list with a run removed from the middle
+
+- **WHEN** the source list is `["a", "x", "y", "b", "c"]` and the target list is `["a", "b", "c"]`
+- **THEN** applying their diff reproduces the target list exactly, including element order
+
+#### Scenario: Round-trip over an unkeyed list with an insertion and a later element change
+
+- **WHEN** the source list is `["a", "b", "c"]` and the target list is `["x", "a", "b", "c2"]`
+- **THEN** applying their diff reproduces the target list exactly, with `"x"` first and `"c2"` last
+- **AND** no failures are reported
+
+#### Scenario: Round-trip over an unkeyed list of nested annotated elements gaining a head element
+
+- **WHEN** a list of a nested annotated element type gains one element at its head
+- **THEN** applying the diff reproduces the target list, leaving the other elements as the source held
+  them
 
 #### Scenario: Round-trip over a set
 
