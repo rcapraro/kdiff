@@ -42,6 +42,8 @@ private val OrderByHand: Differ<Order> = differ {
     nested(Order::shipping, AddressByHand)
     keyedList(Order::addresses, Address::id, AddressByHand)
     list(Order::tags)
+    // The same call a non-null list takes: a property reference is covariant in the value it reads.
+    list(Order::couponCodes)
     set(Order::labels)
     map(Order::amounts)
     nested(Order::payment, PaymentByHand)
@@ -62,6 +64,7 @@ private val before = Order(
     shipping = second,
     addresses = listOf(first, second),
     tags = listOf("urgent"),
+    couponCodes = listOf("SAVE10"),
     labels = setOf("a", "b"),
     amounts = mapOf("eur" to "10"),
     payment = Card("10", "1234"),
@@ -90,6 +93,7 @@ class HandWrittenParitySpec :
                 shipping = null,
                 addresses = listOf(second, first.copy(street = "9 Rue W"), third),
                 tags = listOf("calm", "extra"),
+                couponCodes = null,
                 labels = setOf("b", "c"),
                 amounts = mapOf("eur" to "12", "gbp" to "9"),
                 payment = Transfer("10", "FR76"),
@@ -107,5 +111,39 @@ class HandWrittenParitySpec :
 
         test("both routes ignore the property the annotation excludes") {
             before agreesWith before.copy(lastTouched = "friday")
+        }
+
+        context("a nullable collection agrees through both routes") {
+            test("appearing") {
+                before.copy(couponCodes = null) agreesWith before
+            }
+
+            test("disappearing") {
+                before agreesWith before.copy(couponCodes = null)
+            }
+
+            test("present on both sides") {
+                before agreesWith before.copy(couponCodes = listOf("SAVE20"))
+            }
+
+            test("null on both sides") {
+                before.copy(couponCodes = null) agreesWith before.copy(couponCodes = null)
+            }
+        }
+
+        // `PaymentByHand` declares `Card` and `Transfer` and not `Unpaid`, so the singleton is reached
+        // through the undeclared-subtype rule — which is exactly what the generated differ does for it.
+        context("a sealed singleton agrees through both routes") {
+            test("the same singleton on both sides") {
+                before.copy(payment = Unpaid) agreesWith before.copy(payment = Unpaid)
+            }
+
+            test("a swap to the singleton") {
+                before agreesWith before.copy(payment = Unpaid)
+            }
+
+            test("a swap from the singleton") {
+                before.copy(payment = Unpaid) agreesWith before.copy(payment = Transfer("12", "FR76"))
+            }
         }
     })

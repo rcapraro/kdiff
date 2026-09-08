@@ -23,6 +23,7 @@ private val order = Order(
     shipping = a2,
     addresses = listOf(a1, a2),
     tags = listOf("urgent"),
+    couponCodes = listOf("SAVE10"),
     labels = setOf("a", "b"),
     amounts = mapOf("eur" to "10"),
     payment = Card("10", "1234"),
@@ -89,6 +90,25 @@ class OrderDiffSpec :
                 .changes.map { it.path.toString() } shouldContainExactly listOf("tags[0]")
         }
 
+        test("a nullable list appearing and disappearing reports one change at the property") {
+            diff(order.copy(couponCodes = null))
+                .changes.map { it.path.toString() } shouldContainExactly listOf("couponCodes")
+
+            OrderDiffer.diff(order.copy(couponCodes = null), order)
+                .changes.map { it.path.toString() } shouldContainExactly listOf("couponCodes")
+        }
+
+        test("a nullable list present on both sides is compared by index") {
+            diff(order.copy(couponCodes = listOf("SAVE20")))
+                .changes.map { it.path.toString() } shouldContainExactly listOf("couponCodes[0]")
+        }
+
+        test("a nullable list null on both sides is not a change") {
+            val absent = order.copy(couponCodes = null)
+
+            OrderDiffer.diff(absent, absent).isEmpty() shouldBe true
+        }
+
         test("a set reports membership only") {
             val changes = diff(order.copy(labels = setOf("b", "c"))).changes
 
@@ -115,6 +135,23 @@ class OrderDiffSpec :
                 it.path.toString() shouldBe "payment"
                 it.beforeType shouldBe "Card"
                 it.afterType shouldBe "Transfer"
+            }
+            changes.map { it.path.toString() } shouldContain "payment.amount"
+        }
+
+        test("the same payment singleton on both sides reports nothing about the payment") {
+            val unpaid = order.copy(payment = Unpaid)
+
+            OrderDiffer.diff(unpaid, unpaid).isEmpty() shouldBe true
+        }
+
+        test("a swap to a payment singleton reports a type change plus the sealed parent's own property") {
+            val changes = diff(order.copy(payment = Unpaid)).changes
+
+            changes.filterIsInstance<TypeChanged>().single().let {
+                it.path.toString() shouldBe "payment"
+                it.beforeType shouldBe "Card"
+                it.afterType shouldBe "Unpaid"
             }
             changes.map { it.path.toString() } shouldContain "payment.amount"
         }

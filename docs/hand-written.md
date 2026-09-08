@@ -45,6 +45,16 @@ One call per comparison shape, and between them they cover everything `@Diffable
 | `subtype(Type::class, differ)` | by dispatching on the runtime subclass | `@Diffable` on a sealed type |
 | *naming it nowhere* | not at all | `@DiffIgnore` |
 
+`nested`, `list`, `keyedList`, `set` and `map` each accept a **nullable** property through the same
+call, because a property reference is covariant in the value it reads. A null on either side is one
+value change at the property; two nulls are no change; two present values are compared as that shape
+always is. So `list(Order::couponCodes)` describes a `List<String>?` exactly as it describes a
+`List<String>`.
+
+`subtype` needs no clause for an `object` subtype of a sealed type: leave it undeclared and the
+undeclared-subtype rule already does what a generated differ does for a singleton — two of them
+report nothing, and a swap reports a type change plus the properties the builder names itself.
+
 Naming *nothing at all* is rejected where the differ is built. A differ with an empty block reports
 every pair of instances as equivalent however much they differ, which is the same mistake the
 processor rejects for an annotated class that offers nothing to compare — so the hand-written route

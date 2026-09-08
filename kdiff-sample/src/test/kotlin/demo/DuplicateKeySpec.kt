@@ -19,6 +19,7 @@ private val order = Order(
     shipping = a2,
     addresses = listOf(a1, a2),
     tags = listOf("urgent", "b2b"),
+    couponCodes = null,
     labels = setOf("a", "b"),
     amounts = mapOf("eur" to "10"),
     payment = Card("10", "1234"),

@@ -1,6 +1,7 @@
 package io.github.kdiff.processor
 
 import com.google.devtools.ksp.getDeclaredProperties
+import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
@@ -39,10 +40,32 @@ internal sealed interface Comparison {
     data class AsMap(val valueDiffer: ClassName?, override val sources: List<KSFile>) : Comparison
 }
 
+/** Whether the property's patch helper returns a rebuilt collection, and so cannot itself take a null. */
+internal fun Comparison.rebuildsACollection(): Boolean = when (this) {
+    Comparison.ByValue, is Comparison.Nested -> false
+    is Comparison.KeyedList, is Comparison.PositionalList, Comparison.AsSet, is Comparison.AsMap -> true
+}
+
 /** One property of a declared tracking scope, mirroring the runtime's `TrackedField`. */
 internal data class TrackedProperty(val name: String, val depth: Int)
 
 internal fun KSClassDeclaration.isDiffable(): Boolean = hasAnnotation(DIFFABLE)
+
+/**
+ * Every property carrying [annotation] whose declaring class is not `@Diffable`.
+ *
+ * Such an annotation is never read, because nothing is generated for that class — so each of these is a
+ * declaration that silently configures nothing, and is reported.
+ */
+internal fun Resolver.propertiesOutsideDiffable(annotation: String): List<KSPropertyDeclaration> =
+    getSymbolsWithAnnotation(annotation)
+        .filterIsInstance<KSPropertyDeclaration>()
+        .filterNot { (it.parentDeclaration as? KSClassDeclaration)?.isDiffable() == true }
+        .toList()
+
+/** The class a property is declared in, for a message that names it. */
+internal fun KSPropertyDeclaration.ownerName(): String =
+    (parentDeclaration as? KSClassDeclaration)?.simpleName?.asString() ?: "the class declaring it"
 
 internal fun KSClassDeclaration.isTrackable(): Boolean = hasAnnotation(TRACKABLE)
 
@@ -61,6 +84,14 @@ internal fun KSAnnotated.hasAnnotation(fqName: String): Boolean =
 internal fun KSClassDeclaration.isSealedType(): Boolean = Modifier.SEALED in modifiers
 
 internal fun KSClassDeclaration.isDataClass(): Boolean = classKind == ClassKind.CLASS && Modifier.DATA in modifiers
+
+/**
+ * An `object`, `data object` included.
+ *
+ * A singleton subclass of a sealed type has no state, so it needs no differ of its own and carries no
+ * annotation: its branch reports nothing and applies by returning the instance.
+ */
+internal fun KSClassDeclaration.isSingleton(): Boolean = classKind == ClassKind.OBJECT
 
 /** The single `@DiffKey` property of a type, or null. Multiplicity is diagnosed separately. */
 internal fun KSClassDeclaration.keyProperty(): KSPropertyDeclaration? =

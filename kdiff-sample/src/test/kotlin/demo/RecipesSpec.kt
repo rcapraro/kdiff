@@ -7,6 +7,7 @@ import io.github.kdiff.runtime.Moved
 import io.github.kdiff.runtime.PatchFailedException
 import io.github.kdiff.runtime.PatchFailure
 import io.github.kdiff.runtime.Segment
+import io.github.kdiff.runtime.TypeChanged
 import io.github.kdiff.runtime.ValueChanged
 import io.github.kdiff.runtime.at
 import io.github.kdiff.runtime.compareValue
@@ -38,6 +39,7 @@ private val order = Order(
     shipping = a2,
     addresses = listOf(a1, a2),
     tags = listOf("urgent", "fragile"),
+    couponCodes = null,
     labels = setOf("a", "b"),
     amounts = mapOf("eur" to "10"),
     payment = Card("10", "1234"),
@@ -172,5 +174,42 @@ class RecipesSpec :
 
             NumericMoneyDiffer.diff(Money("10", "EUR"), Money("12", "EUR")).changes shouldContainExactly
                 listOf(ValueChanged(FieldPath.of("amount"), "10", "12"))
+        }
+
+        test("a payload-free case is a data object, and needs no annotation of its own") {
+            val unpaid = order.copy(payment = Unpaid)
+
+            // Entering the state: a type change carrying both instances, plus whatever the sealed
+            // parent declares itself.
+            val entering = OrderDiffer.diff(order, unpaid)
+            entering.changes.filterIsInstance<TypeChanged>().single().afterType shouldBe "Unpaid"
+            entering.changes.map { it.path.toString() } shouldContainExactly
+                listOf("payment", "payment.amount")
+
+            // Staying in it: nothing to report, because a singleton has no state to differ in.
+            OrderDiffer.diff(unpaid, unpaid).isEmpty() shouldBe true
+
+            // Leaving it: applied by substitution, like any type change.
+            val leaving = order.copy(payment = Transfer("12", "FR76"))
+            OrderDiffer.apply(unpaid, OrderDiffer.diff(unpaid, leaving).changes).value shouldBe leaving
+        }
+
+        test("a nullable collection appearing or disappearing is one change at the property") {
+            val withoutCoupons = order.copy(couponCodes = null)
+            val withCoupons = order.copy(couponCodes = listOf("SAVE10"))
+
+            OrderDiffer.diff(withoutCoupons, withCoupons).changes shouldContainExactly
+                listOf(ValueChanged(FieldPath.of("couponCodes"), null, listOf("SAVE10")))
+
+            // Present on both sides it is compared as a list, element by element.
+            OrderDiffer.diff(withCoupons, order.copy(couponCodes = listOf("SAVE20")))
+                .changes.map { it.path.toString() } shouldContainExactly listOf("couponCodes[0]")
+
+            // Absent is not empty: the two are distinguishable, and report differently.
+            val empty = order.copy(couponCodes = emptyList())
+            OrderDiffer.diff(withoutCoupons, empty).changes shouldContainExactly
+                listOf(ValueChanged(FieldPath.of("couponCodes"), null, emptyList<String>()))
+            OrderDiffer.diff(empty, order.copy(couponCodes = listOf("a")))
+                .changes.map { it.path.toString() } shouldContainExactly listOf("couponCodes[0]")
         }
     })

@@ -319,8 +319,10 @@ public final class io/github/kdiff/runtime/PatchKt {
 	public static final fun patchMap (Ljava/util/Map;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/Patched;
 	public static final fun patchNested (Ljava/lang/Object;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/Patched;
 	public static final fun patchNestedNullable (Ljava/lang/Object;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/Patched;
+	public static final fun patchNullable (Ljava/lang/Object;Ljava/util/List;Lkotlin/jvm/functions/Function2;)Lio/github/kdiff/runtime/Patched;
 	public static final fun patchPositionalList (Ljava/util/List;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/Patched;
 	public static final fun patchSet (Ljava/util/Set;Ljava/util/List;)Lio/github/kdiff/runtime/Patched;
+	public static final fun patchSingleton (Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;)Lio/github/kdiff/runtime/PatchResult;
 	public static final fun patchValue (Ljava/lang/Object;Ljava/util/List;)Lio/github/kdiff/runtime/Patched;
 	public static final fun unpatchable (Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;)Lio/github/kdiff/runtime/Patched;
 }

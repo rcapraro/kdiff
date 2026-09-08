@@ -11,6 +11,72 @@ entry written for someone deciding whether to upgrade.
 
 ## [Unreleased]
 
+Three ordinary Kotlin shapes that the processor could not handle now work, and each of them failed in a
+way the project's own rules forbid: an error inside generated code, an annotation that silently did
+nothing, or two diagnostics pointing at each other with no way through.
+
+### Added
+
+- **A nullable collection property is compared and applied.** `List<E>?`, `Set<E>?` and `Map<K, V>?`
+  follow the rule a nullable nested property already followed: a null on one side is one `ValueChanged`
+  at the property carrying both sides, two nulls are no change, and two present collections are compared
+  as that collection always is — by key, by position, by membership or by entry key. Applying mirrors it:
+  a change at the property sets it wholesale, and a change beneath a null one is reported as
+  `NothingBeneathNull`.
+
+  Before this, such a property made the *generated* file fail to compile, with a type mismatch in a file
+  the author had not written. The hand-written route gains it through the same builders — `list`,
+  `keyedList`, `set` and `map` now accept a nullable property exactly as `nested` did, so no call site
+  changes.
+
+- **An `object` subclass of a `@Diffable` sealed type needs no annotation.** `data object Unpaid :
+  Payment` alongside `@Diffable data class Card(...)` now compiles and is dispatched on: two references
+  to one singleton report nothing, and a swap to or from it reports the type change and the sealed
+  parent's own properties, as any subclass swap does. Applying a change addressed *beneath* a singleton
+  reports it as naming a property the type does not have.
+
+  Before this the shape was a dead end — `@Diffable` rejected the object, and the sealed parent required
+  every subclass to carry it. `@Diffable` on the object stays an error, and now says the object needs no
+  annotation of its own.
+
+- **A collection whose elements are nullable and reached through a differ is a compile error at the
+  property**, naming the element type and the two ways out, rather than an error inside generated code.
+  `List<String?>` is unaffected, because equality is defined for null, and so is every `Set`.
+
+- Two new runtime helpers, `patchNullable` and `patchSingleton`, which is the whole of the public API
+  change. Widening the four collection compare helpers to accept a nullable side is source- and
+  binary-compatible, so nothing else in the dump moved.
+
+### Changed
+
+- **BREAKING** — `@DiffKey`, `@DiffIgnore` and `@DiffWith` on a property of a class that is not
+  `@Diffable` now fail the build, naming the property and the missing annotation. They are only ever read
+  off a `@Diffable` class, so anywhere else each one silently configured nothing while its author
+  believed comparison was set up. This is the rule the tracking annotations have carried since `0.1.0`,
+  applied to the three that lacked it.
+
+  *Migration*: add `@Diffable` to the class, or remove the annotation. A module carrying a stray one
+  compiled before and does not now, which is the point.
+
+- **BREAKING** — `@DiffWith` together with `@DiffIgnore` on one property is rejected as a conflict: an
+  ignored property is never compared, so a differ named for it could never run. `@DiffKey` beside
+  `@DiffIgnore` is deliberately **not** a conflict and still compiles — a key identifies the element
+  while `@DiffIgnore` keeps it out of that element's own comparison, which is what you want.
+
+- A change addressed to a **nullable nested property** that a value change at that same property
+  replaces wholesale is now reported as `NotApplicableToValue` instead of being dropped in silence. The
+  rebuilt value is unchanged; what changes is that `failures` accounts for every change it was given,
+  which is what the library promises everywhere else. A caller asserting on an empty `failures` list for
+  such a diff sees the new entry.
+
+  The same rule now covers nullable lists, sets and maps, which is where it was noticed: a wholesale
+  replacement makes the property a value for that application, so the last change at it wins and the
+  rest could not be used.
+
+- The generated API surface is otherwise **unchanged**. A class that compiles today regenerates
+  byte-identically: the nullable-collection wrapper and the singleton branches appear only for shapes
+  that could not compile before.
+
 ## [0.5.0] - 2026-09-08
 
 One comparison behaves differently and nothing else moves: `kdiff-runtime` compares an unkeyed list by

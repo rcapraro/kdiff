@@ -33,7 +33,7 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         val annotated = resolver.getSymbolsWithAnnotation(DIFFABLE).toList()
         val (ready, deferred) = annotated.partition { it.validate() }
 
-        reportTrackingWithoutDiffable(resolver)
+        reportAnnotationsWithoutDiffable(resolver)
 
         ready.filterIsInstance<KSClassDeclaration>()
             .filter { it.isSupported() }
@@ -43,10 +43,10 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
     }
 
     /**
-     * Tracking annotations on a type the processor is never asked about, which would otherwise be
-     * silently ignored: nothing is generated for it, so nothing could carry the scope.
+     * An annotation on a type the processor is never asked about, which would otherwise be silently
+     * ignored: nothing is generated for that type, so nothing could read the annotation.
      */
-    private fun reportTrackingWithoutDiffable(resolver: Resolver) {
+    private fun reportAnnotationsWithoutDiffable(resolver: Resolver) {
         resolver.getSymbolsWithAnnotation(TRACKABLE)
             .filterIsInstance<KSClassDeclaration>()
             .filterNot { it.isDiffable() }
@@ -58,18 +58,56 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
             }
 
         listOf(TRACK_IGNORE, TRACK_DEPTH).forEach { annotation ->
-            resolver.getSymbolsWithAnnotation(annotation)
-                .filterIsInstance<KSPropertyDeclaration>()
-                .filterNot { (it.parentDeclaration as? KSClassDeclaration)?.isDiffable() == true }
-                .forEach { property ->
-                    logger.error(
-                        "@${annotation.substringAfterLast('.')} requires a @Trackable class; the " +
-                            "class declaring ${property.simpleName.asString()} is neither @Diffable " +
-                            "nor @Trackable, and needs both",
-                        property,
-                    )
-                }
+            resolver.propertiesOutsideDiffable(annotation).forEach { property ->
+                logger.error(
+                    "@${annotation.substringAfterLast('.')} requires a @Trackable class; the " +
+                        "class declaring ${property.simpleName.asString()} is neither @Diffable " +
+                        "nor @Trackable, and needs both",
+                    property,
+                )
+            }
         }
+
+        // The comparison annotations are read only off a `@Diffable` class, so anywhere else each one
+        // silently configures nothing — the same failure the tracking annotations above are refused
+        // for, and the same remedy: name the annotation that is missing.
+        listOf(DIFF_KEY, DIFF_IGNORE, DIFF_WITH).forEach { annotation ->
+            resolver.propertiesOutsideDiffable(annotation).forEach { property ->
+                logger.error(
+                    "@${annotation.substringAfterLast('.')} on ${property.simpleName.asString()} " +
+                        "requires @Diffable on ${property.ownerName()}; without a generated differ " +
+                        "it has no effect",
+                    property,
+                )
+            }
+        }
+    }
+
+    /**
+     * A comparison annotation on a property of this class that cannot do what its author meant.
+     *
+     * Checked across every declared property, not only the compared ones — which is the whole point of
+     * the case it reports: `@DiffIgnore` excludes the property from comparison, so `resolve` is never
+     * asked about it and a differ named for it could never run.
+     *
+     * `@DiffKey` beside `@DiffIgnore` is deliberately **not** a conflict. A key identifies an element;
+     * ignoring the same property excludes it from that element's own comparison, which is meaningful
+     * wherever the element type appears outside a keyed list. The two answer different questions.
+     */
+    private fun KSClassDeclaration.reportsHonourableComparisonAnnotations(): Boolean {
+        var honourable = true
+
+        getDeclaredProperties().forEach { property ->
+            if (!property.hasAnnotation(DIFF_WITH) || !property.hasAnnotation(DIFF_IGNORE)) return@forEach
+            logger.error(
+                "@DiffWith on ${property.simpleName.asString()} conflicts with @DiffIgnore; " +
+                    "an ignored property is never compared",
+                property,
+            )
+            honourable = false
+        }
+
+        return honourable
     }
 
     private fun KSClassDeclaration.isSupported(): Boolean {
@@ -83,11 +121,15 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         if (isDataClass() || isSealedType()) return true
         logger.error(
             "@Diffable is only supported on data classes and sealed types; " +
-                "${simpleName.asString()} is ${describeKind()}",
+                "${simpleName.asString()} is ${describeKind()}${objectHint()}",
             this,
         )
         return false
     }
+
+    /** A sealed hierarchy is the one place `@Diffable` is reached for on an object and not needed. */
+    private fun KSClassDeclaration.objectHint(): String =
+        if (isSingleton()) ", and an object in a @Diffable sealed hierarchy needs no annotation of its own" else ""
 
     private fun KSClassDeclaration.describeKind(): String = when {
         classKind == ClassKind.INTERFACE -> "an interface"
@@ -99,6 +141,8 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
     }
 
     private fun KSClassDeclaration.generate() {
+        if (!reportsHonourableComparisonAnnotations()) return
+
         val target = toClassName()
         val sources = mutableSetOf<KSFile>()
         containingFile?.let(sources::add)
@@ -166,19 +210,6 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
             .writeTo(codeGenerator, Dependencies(aggregating = false, *sources.toTypedArray()))
     }
 
-    /** One runtime call listing the scope, so resolution and matching stay in kdiff-runtime. */
-    private fun trackScopeInitializer(scope: List<TrackedProperty>): CodeBlock {
-        if (scope.isEmpty()) return CodeBlock.of("%M()", TRACK_SCOPE_OF)
-
-        return CodeBlock.builder()
-            .add("%M(\n", TRACK_SCOPE_OF)
-            .apply {
-                scope.forEach { add("%T(%S, %L),\n", TRACKED_FIELD, it.name, it.depth) }
-            }
-            .add(")")
-            .build()
-    }
-
     /** A straight-line sequence of runtime calls, one per compared property (design D1). */
     private fun KSClassDeclaration.dataClassBody(sources: MutableSet<KSFile>): CodeBlock? {
         if (!reportsAtMostOneKey()) return null
@@ -200,7 +231,9 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
 
     private fun KSClassDeclaration.sealedBody(sources: MutableSet<KSFile>): CodeBlock? {
         val subclasses = getSealedSubclasses().toList()
-        val unannotated = subclasses.filterNot { it.isDiffable() }
+        // An `object` subclass is exempt: its branch names no differ, so there is nothing an annotation
+        // on it could generate. Only a subclass whose branch delegates needs one.
+        val unannotated = subclasses.filterNot { it.isSingleton() || it.isDiffable() }
         if (unannotated.isNotEmpty()) {
             logger.error(
                 "@Diffable on a sealed type requires every subclass to be @Diffable; " +
@@ -222,6 +255,12 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         val branches = CodeBlock.builder()
         subclasses.forEach { subclass ->
             val name = subclass.toClassName()
+            if (subclass.isSingleton()) {
+                // Two references to one object differ in nothing, so there is nothing to report and no
+                // differ to delegate to.
+                branches.add("before is %T && after is %T -> Unit\n", name, name)
+                return@forEach
+            }
             branches.add(
                 "before is %T && after is %T -> addAll(%T.diff(before, after).changes)\n",
                 name,
@@ -312,6 +351,12 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         val subclasses = getSealedSubclasses().toList()
         subclasses.forEach { subclass ->
             val name = subclass.toClassName()
+            if (subclass.isSingleton()) {
+                // The parent's type argument is stated because `PatchResult` is invariant: inferred
+                // from `before` alone the branch would produce a `PatchResult` of the subclass.
+                body.add("is %T -> %M<%T>(before, changes, %S)\n", name, PATCH_SINGLETON, target, name.simpleName)
+                return@forEach
+            }
             body.add("is %T -> {\n", name).indent()
                 .add("val result = %T.apply(before, changes)\n", differName(name))
                 .add("%T(result.value, result.failures)\n", PATCH_RESULT)
@@ -325,98 +370,6 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         if (subclasses.isEmpty()) body.add("else -> %T(before)\n", PATCH_RESULT)
 
         return body.unindent().add("}\n").build()
-    }
-
-    private fun emitPatch(
-        property: KSPropertyDeclaration,
-        comparison: Comparison,
-        isConstructorParameter: Boolean,
-    ): CodeBlock {
-        val name = property.simpleName.asString()
-        val patched = "${name}Patched"
-        val changes = CodeBlock.of("grouped.forProperty(%S)", name)
-
-        if (!isConstructorParameter) {
-            return CodeBlock.of(
-                "val %N = %M(before.%N, %L, %S)\n",
-                patched,
-                NOT_CONSTRUCTOR_PROPERTY,
-                name,
-                changes,
-                name,
-            )
-        }
-
-        val nullable = property.type.resolve().isMarkedNullable
-
-        return when (comparison) {
-            Comparison.ByValue ->
-                CodeBlock.of("val %N = %M(before.%N, %L)\n", patched, PATCH_VALUE, name, changes)
-
-            is Comparison.Nested -> when {
-                !comparison.canPatch -> CodeBlock.of(
-                    "val %N = %M(before.%N, %L, %S)\n",
-                    patched,
-                    UNPATCHABLE,
-                    name,
-                    changes,
-                    name,
-                )
-
-                nullable -> CodeBlock.of(
-                    "val %N = %M(before.%N, %L, %T)\n",
-                    patched,
-                    PATCH_NESTED_NULLABLE,
-                    name,
-                    changes,
-                    comparison.differ,
-                )
-
-                else -> CodeBlock.of(
-                    "val %N = %M(before.%N, %L, %T)\n",
-                    patched,
-                    PATCH_NESTED,
-                    name,
-                    changes,
-                    comparison.differ,
-                )
-            }
-
-            is Comparison.KeyedList -> CodeBlock.of(
-                "val %N = %M(before.%N, %L, %T, %S, %S) { it.%N }\n",
-                patched, PATCH_KEYED_LIST, name, changes, comparison.differ,
-                name, comparison.keyProperty, comparison.keyProperty,
-            )
-
-            is Comparison.PositionalList -> if (comparison.differ == null) {
-                CodeBlock.of("val %N = %M(before.%N, %L, null)\n", patched, PATCH_POSITIONAL_LIST, name, changes)
-            } else {
-                CodeBlock.of(
-                    "val %N = %M(before.%N, %L, %T)\n",
-                    patched,
-                    PATCH_POSITIONAL_LIST,
-                    name,
-                    changes,
-                    comparison.differ,
-                )
-            }
-
-            is Comparison.AsSet ->
-                CodeBlock.of("val %N = %M(before.%N, %L)\n", patched, PATCH_SET, name, changes)
-
-            is Comparison.AsMap -> if (comparison.valueDiffer == null) {
-                CodeBlock.of("val %N = %M(before.%N, %L, null)\n", patched, PATCH_MAP, name, changes)
-            } else {
-                CodeBlock.of(
-                    "val %N = %M(before.%N, %L, %T)\n",
-                    patched,
-                    PATCH_MAP,
-                    name,
-                    changes,
-                    comparison.valueDiffer,
-                )
-            }
-        }
     }
 
     private fun KSClassDeclaration.comparableProperties(): List<KSPropertyDeclaration> =
@@ -546,6 +499,7 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         val declaration = element.declarationOrNull()
 
         if (declaration != null && declaration.isDiffable()) {
+            if (element.isMarkedNullable) return nullableElement(property, "elements", element)
             val key = declaration.keyProperty()
             val differ = declaration.differClassName()
             return if (key == null) {
@@ -568,10 +522,32 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         val declaration = value.declarationOrNull()
 
         if (declaration != null && declaration.isDiffable()) {
+            if (value.isMarkedNullable) return nullableElement(property, "values", value)
             return Comparison.AsMap(declaration.differClassName(), declaration.file())
         }
         if (value.isValueType()) return Comparison.AsMap(valueDiffer = null, sources = emptyList())
         return unsupportedElement(property, value)
+    }
+
+    /**
+     * An element or map value that is both nullable and reached through a differ.
+     *
+     * A differ takes an instance, so there is nothing for it to compare a null against, and a keyed
+     * list could not read a key off one either. Reported rather than supported because supporting it
+     * needs a per-element null rule in every collection helper — a separate change, and additive.
+     *
+     * A nullable element compared *as a value* is untouched: equality is defined for null. So is any
+     * set element, since a set is compared by membership alone.
+     */
+    private fun nullableElement(property: KSPropertyDeclaration, part: String, type: KSType): Comparison? {
+        logger.error(
+            "kdiff cannot compare ${property.simpleName.asString()}: its $part are nullable " +
+                "${type.declaration.qualifiedName?.asString() ?: type}, and $part compared by a " +
+                "differ cannot be null; declare them non-null, or point the property at a " +
+                "hand-written differ with @DiffWith",
+            property,
+        )
+        return null
     }
 
     private fun unsupportedElement(property: KSPropertyDeclaration, type: KSType): Comparison? {
@@ -629,80 +605,4 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
             matches && supertype.typeArgumentAt(0)?.declaration?.qualifiedName ==
                 propertyType.declaration.qualifiedName
         }
-
-    private fun emit(property: KSPropertyDeclaration, comparison: Comparison): CodeBlock {
-        val name = property.simpleName.asString()
-        val nullable = property.type.resolve().isMarkedNullable
-
-        return when (comparison) {
-            Comparison.ByValue ->
-                CodeBlock.of("%M(%S, before.%N, after.%N)\n", COMPARE_VALUE, name, name, name)
-
-            is Comparison.Nested -> if (nullable) {
-                CodeBlock.of(
-                    "%M(%S, before.%N, after.%N, %T)\n",
-                    COMPARE_NESTED_NULLABLE,
-                    name,
-                    name,
-                    name,
-                    comparison.differ,
-                )
-            } else {
-                CodeBlock.of(
-                    "%M(%S, before.%N, after.%N, %T)\n",
-                    COMPARE_NESTED,
-                    name,
-                    name,
-                    name,
-                    comparison.differ,
-                )
-            }
-
-            is Comparison.KeyedList -> CodeBlock.of(
-                "%M(%S, %S, before.%N, after.%N, %T) { it.%N }\n",
-                COMPARE_KEYED_LIST,
-                name,
-                comparison.keyProperty,
-                name,
-                name,
-                comparison.differ,
-                comparison.keyProperty,
-            )
-
-            is Comparison.PositionalList -> if (comparison.differ == null) {
-                CodeBlock.of(
-                    "%M(%S, before.%N, after.%N, null)\n",
-                    COMPARE_POSITIONAL_LIST,
-                    name,
-                    name,
-                    name,
-                )
-            } else {
-                CodeBlock.of(
-                    "%M(%S, before.%N, after.%N, %T)\n",
-                    COMPARE_POSITIONAL_LIST,
-                    name,
-                    name,
-                    name,
-                    comparison.differ,
-                )
-            }
-
-            is Comparison.AsSet ->
-                CodeBlock.of("%M(%S, before.%N, after.%N)\n", COMPARE_SET, name, name, name)
-
-            is Comparison.AsMap -> if (comparison.valueDiffer == null) {
-                CodeBlock.of("%M(%S, before.%N, after.%N, null)\n", COMPARE_MAP, name, name, name)
-            } else {
-                CodeBlock.of(
-                    "%M(%S, before.%N, after.%N, %T)\n",
-                    COMPARE_MAP,
-                    name,
-                    name,
-                    name,
-                    comparison.valueDiffer,
-                )
-            }
-        }
-    }
 }

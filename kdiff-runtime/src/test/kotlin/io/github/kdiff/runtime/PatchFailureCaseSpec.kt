@@ -90,4 +90,24 @@ class PatchFailureCaseSpec :
                 result.getOrThrow() shouldBe result.value
             }
         }
+
+        // A singleton subclass of a sealed type has no property a change could name, so applying to one
+        // returns it and reports whatever it was given.
+        context("applying to a sealed singleton") {
+            test("an empty change list returns the singleton with no failures") {
+                val result = patchSingleton("Unpaid", emptyList(), "Unpaid")
+
+                result.value shouldBe "Unpaid"
+                result.isClean shouldBe true
+            }
+
+            test("a foreign change is reported as addressing a property the type does not have") {
+                val result = patchSingleton("Unpaid", listOf(change), "Unpaid")
+
+                result.value shouldBe "Unpaid"
+                result.failures shouldContainExactly
+                    listOf(PatchFailure(change, PatchFailure.Reason.UnknownProperty("Unpaid")))
+                result.failures.single().toString() shouldBe "city: Unpaid has no compared property at this path"
+            }
+        }
     })

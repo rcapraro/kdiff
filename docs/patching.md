@@ -149,7 +149,20 @@ catches them.
 | `TypeChanged` | substitutes the value wholesale, using the carried `after` |
 
 A `TypeChanged` at a sealed value substitutes rather than descends — which is why the change carries
-both values, not just their type names. A subclass change therefore yields the target's subclass.
+both values, not just their type names. A subclass change therefore yields the target's subclass, an
+`object` subclass included.
+
+A `ValueChanged` **at** a nullable collection property sets it wholesale, to a collection or to `null`,
+because that is what the comparison reported for it appearing or disappearing. Changes *beneath* one
+are applied to the collection when it is there, and reported as
+`NothingBeneathNull` when it is not — the same rule a nullable nested property follows.
+
+Two consequences worth knowing. A wholesale replacement makes the property a value for that
+application, so any other change addressed to it is reported as `NotApplicableToValue` rather than
+dropped — the last change at the property wins, exactly as it does for a property compared as a value.
+And a present source is still held to its shape's preconditions whatever is being applied to it: a
+nullable keyed list whose source holds a repeated key is refused on an empty change list and on a
+wholesale replacement alike, so making a property nullable never buys it out of a check.
 
 Applying an empty change list returns an equal instance and reports nothing.
 

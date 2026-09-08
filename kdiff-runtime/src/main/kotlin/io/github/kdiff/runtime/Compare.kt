@@ -40,6 +40,21 @@ public fun <T : Any> MutableList<Change>.compareNestedNullable(
 }
 
 /**
+ * Reports the null side of a nullable collection property.
+ *
+ * The rule [compareNestedNullable] states, applied to the four collection helpers: one null side is a
+ * value change at the property itself, and two nulls are no change at all. A property's path exists on
+ * both sides or on neither, so a collection appearing or disappearing is never an addition or a removal
+ * of the elements it would have held.
+ *
+ * Reached only where one side is already known to be null, which is why it tells the two cases apart by
+ * identity: two nulls are the same reference, and one null is not.
+ */
+private fun MutableList<Change>.reportNullSide(name: String, before: Any?, after: Any?) {
+    if (before !== after) add(ValueChanged(FieldPath.of(name), before, after))
+}
+
+/**
  * Rejects a keyed collection holding two elements that carry one key.
  *
  * A keyed comparison has no representable result for a repeated key: a path identifies an element by
@@ -87,15 +102,29 @@ internal fun <T> indexByKey(
  * A key identifies at most one element in each list. Two elements sharing one is an
  * [IllegalArgumentException]: see [duplicateKey] for why such a comparison has no result to
  * report.
+ *
+ * A null on either side is a value change at the property, never an addition or a removal — see
+ * [reportNullSide]. One call therefore serves a nullable property and a non-null one.
+ *
+ * A present side is indexed even on that path, so a repeated key is refused there too: having no
+ * representable diff is a fact about the list itself, not about what it is being compared against, and
+ * reporting the transition would otherwise hand the caller a list that the very next comparison of it
+ * refuses.
  */
 public fun <T> MutableList<Change>.compareKeyedList(
     name: String,
     keyProperty: String,
-    before: List<T>,
-    after: List<T>,
+    before: List<T>?,
+    after: List<T>?,
     differ: Differ<T>,
     keyOf: (T) -> Any?,
 ) {
+    if (before == null || after == null) {
+        before?.let { indexByKey(name, keyProperty, it, keyOf) }
+        after?.let { indexByKey(name, keyProperty, it, keyOf) }
+        return reportNullSide(name, before, after)
+    }
+
     val field = Segment.Field(name)
     val beforeByKey = indexByKey(name, keyProperty, before, keyOf)
     val afterByKey = indexByKey(name, keyProperty, after, keyOf)
@@ -204,13 +233,18 @@ private fun <T> MutableList<Change>.compareWindow(
  * identity, and nothing here overrides it.
  *
  * A move is never reported: with no key there is nothing to recognise a moved element by.
+ *
+ * A null on either side is a value change at the property, never an addition or a removal — see
+ * [reportNullSide]. One call therefore serves a nullable property and a non-null one.
  */
 public fun <T> MutableList<Change>.comparePositionalList(
     name: String,
-    before: List<T>,
-    after: List<T>,
+    before: List<T>?,
+    after: List<T>?,
     differ: Differ<T>?,
 ) {
+    if (before == null || after == null) return reportNullSide(name, before, after)
+
     val field = Segment.Field(name)
 
     // Elements compared as opaque values cannot recurse, so they take no descent step. Elements a
@@ -229,8 +263,13 @@ public fun <T> MutableList<Change>.comparePositionalList(
  *
  * Never reports a move or a modified element: set elements have no stable identity, so a modified
  * element is indistinguishable from one removed and another added.
+ *
+ * A null on either side is a value change at the property, never an addition or a removal — see
+ * [reportNullSide]. One call therefore serves a nullable property and a non-null one.
  */
-public fun <T> MutableList<Change>.compareSet(name: String, before: Set<T>, after: Set<T>) {
+public fun <T> MutableList<Change>.compareSet(name: String, before: Set<T>?, after: Set<T>?) {
+    if (before == null || after == null) return reportNullSide(name, before, after)
+
     // Walked rather than subtracted: `before - after` copies the whole receiver into a new set before
     // removing anything, and membership is all either side is being asked about.
     val path = FieldPath.of(name)
@@ -238,13 +277,20 @@ public fun <T> MutableList<Change>.compareSet(name: String, before: Set<T>, afte
     after.forEach { if (it !in before) add(Added(path, it)) }
 }
 
-/** Compares a map by entry key, delegating to [differ] for values it can descend into. */
+/**
+ * Compares a map by entry key, delegating to [differ] for values it can descend into.
+ *
+ * A null on either side is a value change at the property, never an addition or a removal — see
+ * [reportNullSide]. One call therefore serves a nullable property and a non-null one.
+ */
 public fun <K, V> MutableList<Change>.compareMap(
     name: String,
-    before: Map<K, V>,
-    after: Map<K, V>,
+    before: Map<K, V>?,
+    after: Map<K, V>?,
     differ: Differ<V>?,
 ) {
+    if (before == null || after == null) return reportNullSide(name, before, after)
+
     val field = Segment.Field(name)
 
     // Entries compared as opaque values cannot recurse, so they take no descent step — the same

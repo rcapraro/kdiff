@@ -295,6 +295,55 @@ ended up. `tags` is an unkeyed `List<String>`, so the same swap reports as value
 positions instead. A key must be unique in the list, or comparing it raises
 [`DuplicateDiffKeyException`](errors.md#duplicatediffkeyexception). → [Lists](diffing.md#lists)
 
+## Model a state with a payload-free case
+
+Declare it as a `data object` and leave it unannotated. The sealed parent dispatches on it, and
+`@Diffable` on the object itself is
+[an error](errors.md#diffable-on-the-wrong-declaration) because it would configure nothing.
+
+<!-- from: kdiff-sample/src/main/kotlin/demo/Model.kt -->
+```kotlin
+data object Unpaid : Payment {
+    override val amount: String get() = "0"
+}
+```
+
+<!-- from: kdiff-sample/src/test/kotlin/demo/RecipesSpec.kt -->
+```kotlin
+            // Entering the state: a type change carrying both instances, plus whatever the sealed
+            // parent declares itself.
+            val entering = OrderDiffer.diff(order, unpaid)
+            entering.changes.filterIsInstance<TypeChanged>().single().afterType shouldBe "Unpaid"
+            entering.changes.map { it.path.toString() } shouldContainExactly
+                listOf("payment", "payment.amount")
+```
+
+Staying in the state reports nothing, because a singleton has no state to differ in. Leaving it is
+applied by substitution, like any type change. →
+[A payload-free case](diffing.md#a-payload-free-case)
+
+## Diff a collection that can be absent
+
+Declare the property nullable and nothing else changes: the same annotation, the same builder call.
+Appearing or disappearing is one change at the property; present on both sides it is compared as that
+collection always is.
+
+<!-- from: kdiff-sample/src/test/kotlin/demo/RecipesSpec.kt -->
+```kotlin
+            OrderDiffer.diff(withoutCoupons, withCoupons).changes shouldContainExactly
+                listOf(ValueChanged(FieldPath.of("couponCodes"), null, listOf("SAVE10")))
+
+            // Present on both sides it is compared as a list, element by element.
+            OrderDiffer.diff(withCoupons, order.copy(couponCodes = listOf("SAVE20")))
+                .changes.map { it.path.toString() } shouldContainExactly listOf("couponCodes[0]")
+```
+
+An absent collection is not an empty one: `null` to `[]` is a change at the property, and `[]` to
+`["a"]` is an addition at `couponCodes[0]`. What kdiff will not take is a nullable *element* reached
+through a differ, such as `List<Address?>` — that is
+[a compile error](errors.md#a-collection-whose-elements-are-nullable-and-reached-through-a-differ). →
+[Values, enums and nullables](diffing.md#values-enums-and-nullables)
+
 ## Where to go next
 
 - [Tutorial](tutorial.md) — these pieces assembled into one worked application

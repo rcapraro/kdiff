@@ -64,29 +64,64 @@ public fun <T> patchNested(source: T, changes: List<Change>, patcher: Patcher<T>
 private val NESTED = Segment.Field("<nested>")
 
 /**
- * Rebuilds a nullable nested value.
+ * Rebuilds a nullable property of any shape, delegating to [patch] when there is a value to rebuild.
  *
- * A change at the property itself sets it wholesale — that is how a null transition was reported —
- * and anything deeper is delegated only when there is an instance to delegate to.
+ * The counterpart of `compareNestedNullable`'s rule on the applying side, and the one place it is
+ * written: a value change at the property itself sets it wholesale — that is how a null transition is
+ * reported — nothing can be rebuilt beneath a null, and anything deeper is delegated only when there
+ * is an instance to delegate to.
+ *
+ * [patch] is the helper that rebuilds the shape in question, so a nullable nested value, list, set or
+ * map all reach the same rule. It carries whatever descent step its shape takes; this adds none of its
+ * own, because the null cases recurse into nothing.
+ *
+ * Only a [ValueChanged] *at* the property is this helper's own business. Everything else is delegated,
+ * an empty path included: a set reports its own elements there, and a sealed nested value reports a
+ * subclass swap there, and both belong to the shape's helper.
  */
-public fun <T : Any> patchNestedNullable(source: T?, changes: List<Change>, patcher: Patcher<T>): Patched<T?> {
-    if (changes.isEmpty()) return Patched(source)
+public fun <C : Any> patchNullable(
+    source: C?,
+    changes: List<Change>,
+    patch: (C, List<Change>) -> Patched<C>,
+): Patched<C?> {
+    val wholesale = changes.lastOrNull { it is ValueChanged && it.path.segments.isEmpty() }
+    val delegated = if (wholesale == null) changes else changes.filterNot { it === wholesale }
 
-    val atProperty = changes.lastOrNull { it.path.segments.isEmpty() }
-    if (atProperty is ValueChanged) {
+    // Delegated even where the outcome below discards the result, and even for an empty change list: a
+    // present value meets its shape's preconditions whether or not anything is applied to it, and
+    // delegating is the only way to reach them. `patchKeyedList` examines the list it is handed before
+    // its own empty-changes exit, precisely so that carrying a property through cannot skip the check —
+    // and a nullable declaration of that property must not behave differently from a non-null one.
+    // Every shape without a precondition returns at once on an empty list, so this costs them nothing.
+    val rebuilt = source?.let { patch(it, delegated) }
+
+    if (wholesale is ValueChanged) {
+        // Replaced outright, which makes the property a value here: the last change at it wins and
+        // everything else addressed to it could not be used. Reported rather than dropped, and with
+        // the reason `patchValue` gives its own leftovers, since this is that same situation.
         @Suppress("UNCHECKED_CAST")
-        return Patched(atProperty.after as T?)
+        return Patched(
+            wholesale.after as C?,
+            delegated.map { PatchFailure(it, PatchFailure.Reason.NotApplicableToValue) },
+        )
     }
 
-    if (source == null) {
+    if (rebuilt == null) {
         return Patched(null, changes.map { PatchFailure(it, PatchFailure.Reason.NothingBeneathNull) })
     }
 
-    return Descent.into(NESTED, source) {
-        val result = patcher.apply(source, changes)
-        Patched(result.value, result.failures)
-    }
+    return Patched(rebuilt.value, rebuilt.failures)
 }
+
+/**
+ * Rebuilds a nullable nested value.
+ *
+ * A change at the property itself sets it wholesale — that is how a null transition was reported —
+ * and anything deeper is delegated only when there is an instance to delegate to. [patchNested]
+ * carries the descent step, as it does for a non-null nested property.
+ */
+public fun <T : Any> patchNestedNullable(source: T?, changes: List<Change>, patcher: Patcher<T>): Patched<T?> =
+    patchNullable(source, changes) { value, nested -> patchNested(value, nested, patcher) }
 
 /** Reports every change beneath a property whose differ cannot patch (design D7). */
 public fun <T> unpatchable(source: T, changes: List<Change>, property: String): Patched<T> =
@@ -95,6 +130,21 @@ public fun <T> unpatchable(source: T, changes: List<Change>, property: String): 
 /** Reports every change targeting a property that is not a constructor parameter. */
 public fun <T> notConstructorProperty(source: T, changes: List<Change>, property: String): Patched<T> =
     Patched(source, changes.map { PatchFailure(it, PatchFailure.Reason.NotConstructorProperty(property)) })
+
+/**
+ * Applies to an `object` subclass of a sealed type by returning it, reporting every change as
+ * addressing a property [type] does not have.
+ *
+ * A singleton has no state, so it has no property a change could name and nothing to rebuild. Any
+ * change reaching it therefore did not come from comparing it, which is what
+ * [PatchFailure.Reason.UnknownProperty] says. A subclass swap never arrives here: it is resolved at the
+ * root, before dispatch, and carries the target instance.
+ *
+ * Returns a [PatchResult] rather than a [Patched] because it is a whole `apply`, not one rebuilt
+ * property — it stands in for the branch a data class subclass fills with a call to its own patcher.
+ */
+public fun <T> patchSingleton(before: T, changes: List<Change>, type: String): PatchResult<T> =
+    PatchResult(before, changes.map { PatchFailure(it, PatchFailure.Reason.UnknownProperty(type)) })
 
 /**
  * Rebuilds a keyed list by computing its target state rather than replaying operations, so that no

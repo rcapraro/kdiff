@@ -294,6 +294,28 @@ for collection elements and map entries:
 
 Null on both sides is not a change.
 
+**A nullable collection follows the same rule.** A `List<E>?`, `Set<E>?` or `Map<K, V>?` appearing or
+disappearing is one value change at the property, carrying the two collections — not an addition or a
+removal per element. Present on both sides it is compared as that collection always is, by key, by
+position, by membership or by entry key:
+
+<!-- from: kdiff-sample/src/test/kotlin/demo/OrderDiffSpec.kt -->
+```kotlin
+        test("a nullable list appearing and disappearing reports one change at the property") {
+            diff(order.copy(couponCodes = null))
+                .changes.map { it.path.toString() } shouldContainExactly listOf("couponCodes")
+```
+
+Being nullable changes nothing about what a collection must be. A keyed list is still examined on
+whichever side is present, so a repeated `@DiffKey` value is
+[refused](errors.md#duplicatediffkeyexception) even on the transition that only reports the property
+appearing or disappearing — a nullable declaration refuses whatever its non-null twin refuses.
+
+What kdiff will not compare is a nullable *element* reached through a differ — `List<Address?>` where
+`Address` is `@Diffable`. That is
+[a compile error](errors.md#a-collection-whose-elements-are-nullable-and-reached-through-a-differ),
+because a differ has nothing to compare a null against. `List<String?>` is fine, and so is any `Set`.
+
 ## Excluding a property
 
 `@DiffIgnore` removes a property from comparison entirely. It never contributes a change, however
@@ -385,8 +407,8 @@ entry.
 
 ## Sealed types
 
-`@Diffable` works on a sealed class or interface whose subclasses are all themselves `@Diffable`. The
-generated differ dispatches on the runtime type:
+`@Diffable` works on a sealed class or interface whose subclasses are all either themselves
+`@Diffable` or declared as an `object`. The generated differ dispatches on the runtime type:
 
 <!-- from: kdiff-sample/src/main/kotlin/demo/Model.kt -->
 ```kotlin
@@ -409,6 +431,27 @@ data class Transfer(override val amount: String, val iban: String) : Payment
   belonging to only one of the two subclasses, since there is nothing to compare them against.
 
 When the parent declares no properties of its own, a subclass swap produces the type change alone.
+
+### A payload-free case
+
+An `object` or `data object` subclass — the way Kotlin models a state with no payload — **needs no
+annotation of its own**, and putting `@Diffable` on it is
+[an error](errors.md#diffable-on-the-wrong-declaration). There is nothing an annotation could
+configure: a singleton has no property to compare, ignore or key, and the sealed parent knows it from
+the hierarchy.
+
+<!-- from: kdiff-sample/src/main/kotlin/demo/Model.kt -->
+```kotlin
+data object Unpaid : Payment {
+    override val amount: String get() = "0"
+}
+```
+
+Two references to one singleton differ in nothing, so it reports nothing. A swap to or from it is an
+ordinary subclass swap: the type change carries both instances, and the sealed parent's own properties
+are compared alongside it. Applying such a swap substitutes the singleton wholesale, and a change
+addressed *beneath* one is reported as naming a property it does not have — because comparing it could
+never have produced that change.
 
 ## Viewing a diff
 

@@ -21,6 +21,7 @@ private val order = Order(
     shipping = a2,
     addresses = listOf(a1, a2),
     tags = listOf("urgent", "b2b"),
+    couponCodes = listOf("SAVE10"),
     labels = setOf("a", "b"),
     amounts = mapOf("eur" to "10"),
     payment = Card("10", "1234"),
@@ -73,6 +74,13 @@ class RoundTripSpec :
             roundTripFrom(order.copy(tags = listOf("calm", "b2b")))
         }
 
+        test("a nullable list in all four transitions") {
+            roundTripFrom(order.copy(couponCodes = null))
+            roundTrip(order.copy(couponCodes = null), order)
+            roundTripFrom(order.copy(couponCodes = listOf("SAVE20", "FREESHIP")))
+            roundTrip(order.copy(couponCodes = null), order.copy(couponCodes = null))
+        }
+
         test("a set") {
             roundTripFrom(order.copy(labels = setOf("b", "c")))
         }
@@ -87,6 +95,16 @@ class RoundTripSpec :
 
         test("a sealed value keeping its subclass") {
             roundTripFrom(order.copy(payment = Card("10", "5678")))
+        }
+
+        test("a swap to and from a sealed singleton") {
+            roundTripFrom(order.copy(payment = Unpaid))
+            roundTrip(order.copy(payment = Unpaid), order)
+            roundTrip(order.copy(payment = Unpaid), order.copy(payment = Transfer("12", "FR76")))
+        }
+
+        test("a sealed singleton unchanged on both sides") {
+            roundTrip(order.copy(payment = Unpaid), order.copy(payment = Unpaid))
         }
 
         test("a subclass change yields the target's subclass") {

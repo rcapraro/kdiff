@@ -54,6 +54,11 @@ data class Card(override val amount: String, val last4: String) : Payment
 @Diffable
 data class Transfer(override val amount: String, val iban: String) : Payment
 
+/** A payload-free case, which needs no annotation of its own: a singleton has nothing to compare. */
+data object Unpaid : Payment {
+    override val amount: String get() = "0"
+}
+
 @Diffable
 @Trackable(depth = 1)
 data class Order(
@@ -65,6 +70,8 @@ data class Order(
     val shipping: Address?,
     val addresses: List<Address>,
     val tags: List<String>,
+    /** Nullable, so the sample covers a collection that can appear and disappear as well as change. */
+    val couponCodes: List<String>?,
     val labels: Set<String>,
     val amounts: Map<String, String>,
     val payment: Payment,

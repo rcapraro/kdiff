@@ -67,8 +67,12 @@ public class DifferBuilder<T> @PublishedApi internal constructor() {
      *
      * A move is never reported: with no key there is nothing to recognise a moved element by. Name a
      * key with [keyedList] to get moves.
+     *
+     * A null on either side is a value change at the property, never an addition or a removal: the
+     * property exists on both sides or on neither. One call serves a nullable property and a non-null
+     * one, because a property reference is covariant in the value it reads.
      */
-    public fun <E : Any> list(property: KProperty1<T, List<E>>, differ: Differ<E>? = null) {
+    public fun <E : Any> list(property: KProperty1<T, List<E>?>, differ: Differ<E>? = null) {
         comparisons += { changes, before, after ->
             changes.comparePositionalList(property.name, property.get(before), property.get(after), differ)
         }
@@ -81,9 +85,13 @@ public class DifferBuilder<T> @PublishedApi internal constructor() {
      * [key] supplies both halves the comparison needs — the name a path segment carries and the value
      * it identifies an element by — so the two cannot get out of step. It is the counterpart of
      * `@DiffKey` on the element type.
+     *
+     * A null on either side is a value change at the property, never an addition or a removal: the
+     * property exists on both sides or on neither. One call serves a nullable property and a non-null
+     * one, because a property reference is covariant in the value it reads.
      */
     public fun <E : Any, K : Any> keyedList(
-        property: KProperty1<T, List<E>>,
+        property: KProperty1<T, List<E>?>,
         key: KProperty1<E, K>,
         differ: Differ<E>,
     ) {
@@ -104,15 +112,25 @@ public class DifferBuilder<T> @PublishedApi internal constructor() {
      *
      * Never reports a move or a modified element: set elements have no stable identity, so a modified
      * element is indistinguishable from one removed and another added.
+     *
+     * A null on either side is a value change at the property, never an addition or a removal: the
+     * property exists on both sides or on neither. One call serves a nullable property and a non-null
+     * one, because a property reference is covariant in the value it reads.
      */
-    public fun set(property: KProperty1<T, Set<*>>) {
+    public fun set(property: KProperty1<T, Set<*>?>) {
         comparisons += { changes, before, after ->
             changes.compareSet(property.name, property.get(before), property.get(after))
         }
     }
 
-    /** Compares [property] by entry key, descending into values with [values] when one is given. */
-    public fun <K : Any, V : Any> map(property: KProperty1<T, Map<K, V>>, values: Differ<V>? = null) {
+    /**
+     * Compares [property] by entry key, descending into values with [values] when one is given.
+     *
+     * A null on either side is a value change at the property, never an addition or a removal: the
+     * property exists on both sides or on neither. One call serves a nullable property and a non-null
+     * one, because a property reference is covariant in the value it reads.
+     */
+    public fun <K : Any, V : Any> map(property: KProperty1<T, Map<K, V>?>, values: Differ<V>? = null) {
         comparisons += { changes, before, after ->
             changes.compareMap(property.name, property.get(before), property.get(after), values)
         }

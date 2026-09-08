@@ -9,7 +9,7 @@ about it:
 ```
    +---------------------------------------------------------------------+
    | 1  COMPILE TIME        the build fails, KSP names a declaration     |
-   |                        fifteen diagnostics -- your model or your    |
+   |                        eighteen diagnostics -- your model or your   |
    |                        annotations. Nothing runs until you fix it.  |
    +---------------------------------------------------------------------+
    | 2  CONSTRUCTION        building a differ, scope or routing throws   |
@@ -40,9 +40,15 @@ declaration fails the whole build, and the failure names it rather than a valid 
 
 > `@Diffable is only supported on data classes and sealed types; <Type> is <kind>`
 
-A plain class, an interface, an object, an enum class or an annotation class. Make it a data class, or
+A plain class, an interface, an enum class or an annotation class. Make it a data class, or
 — if the type is not yours — leave it unannotated and point the property at a hand-written differ with
 [`@DiffWith`](annotations.md#diffwith).
+
+> `@Diffable is only supported on data classes and sealed types; <Type> is an object, and an object in a @Diffable sealed hierarchy needs no annotation of its own`
+
+An `object` gets the extra clause because that is the one place the annotation is reached for and not
+needed: an `object` or `data object` subclass of a `@Diffable` sealed type is dispatched on with no
+annotation at all. Delete it. See [sealed types](diffing.md#sealed-types).
 
 > `@Diffable does not support type parameters; <Type> is generic`
 
@@ -68,6 +74,22 @@ and useless.
 
 Both are the escape hatch's entry point: see [hand-written differs](hand-written.md).
 
+### A collection whose elements are nullable and reached through a differ
+
+> `kdiff cannot compare <prop>: its elements are nullable <T>, and elements compared by a differ cannot be null; declare them non-null, or point the property at a hand-written differ with @DiffWith`
+
+> `kdiff cannot compare <prop>: its values are nullable <T>, and values compared by a differ cannot be null; declare them non-null, or point the property at a hand-written differ with @DiffWith`
+
+`List<Address?>` and `Map<String, Address?>`, where `Address` is `@Diffable`. A differ takes an
+instance, so there is nothing for it to compare a null element against, and a keyed list could not
+read a key off one either.
+
+Three neighbouring shapes are **not** affected. A nullable element compared as a *value* —
+`List<String?>` — is fine, because equality is defined for null. Any `Set` is fine whatever its element
+type, because a set is compared by membership alone. And a nullable *collection* —
+`List<Address>?` — is fine: that is [the null rule](diffing.md#values-enums-and-nullables), reported as
+one change at the property.
+
 ### `@DiffWith` that cannot work
 
 > `@DiffWith needs a differ class`
@@ -92,6 +114,27 @@ If the named object implements only `Differ`, that compiles — and leaves the p
 
 A path names a keyed element by one key value, so a second key has nothing to mean. Keep one; if
 elements are identified by a composite, make that composite a property.
+
+### Comparison annotations that could do nothing
+
+These two exist for the reason the tracking ones below do: the alternative is an annotation that
+silently does nothing while its author believes comparison is configured.
+
+> `@<DiffKey|DiffIgnore|DiffWith> on <prop> requires @Diffable on <Type>; without a generated differ it has no effect`
+
+The three comparison annotations are read only off a `@Diffable` class. On any other class nothing
+reads them, so the property is not keyed, not ignored and not pointed anywhere — it is simply not
+compared, because nothing about that class is. Add `@Diffable` to the class, or remove the annotation.
+
+> `@DiffWith on <prop> conflicts with @DiffIgnore; an ignored property is never compared`
+
+`@DiffIgnore` excludes the property from comparison, so a differ named for it could never run. Pick
+one.
+
+`@DiffKey` beside `@DiffIgnore` is deliberately **not** a conflict, and compiles: a key identifies an
+element, while ignoring the same property excludes it from that element's *own* comparison — which is
+what you want, since two elements matched by key are equal in it by construction. The
+[tutorial](tutorial.md) does exactly this.
 
 ### Tracking annotations that could do nothing
 
@@ -290,6 +333,11 @@ runtime helper directly.
 Two elements sharing a `@DiffKey` value cannot be told apart, so the list has no representable diff
 and no rebuildable form. Comparing and applying refuse it identically, and it happens whatever you
 are applying, an empty change list included.
+
+**Declaring the list nullable does not change this.** Whichever side is present is examined, so the
+refusal reaches the transition that merely reports the property appearing or disappearing, and it
+reaches an apply that is about to replace the list wholesale. A nullable declaration refuses whatever
+its non-null twin refuses. A `null` has nothing to examine and is never refused.
 
 **Uniqueness is a property of your data, not of your declaration**, which is why this cannot be a
 compile error. If your key genuinely is not unique it is not an identity: drop `@DiffKey`, or describe

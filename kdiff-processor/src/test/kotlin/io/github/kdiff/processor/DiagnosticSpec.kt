@@ -3,6 +3,7 @@ package io.github.kdiff.processor
 import com.tschuchort.compiletesting.KotlinCompilation
 import com.tschuchort.compiletesting.SourceFile
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -17,6 +18,46 @@ private val rejections = listOf(
 )
 
 private const val UNSUPPORTED_TARGET = "@Diffable is only supported on data classes and sealed types"
+
+/** `Order`'s first property lands on line 14, so locations can be asserted. */
+private fun undiffable(properties: String): SourceFile = SourceFile.kotlin(
+    "Order.kt",
+    """
+    package demo
+
+    import io.github.kdiff.annotations.DiffIgnore
+    import io.github.kdiff.annotations.DiffKey
+    import io.github.kdiff.annotations.DiffWith
+    import io.github.kdiff.runtime.Differ
+    import io.github.kdiff.runtime.differ
+
+    class Money(val amount: String)
+
+    object MoneyDiffer : Differ<Money> by differ({ field(Money::amount) })
+
+    data class Order(
+        $properties
+    )
+    """.trimIndent(),
+)
+
+/** An element type reached through a differ, so its nullability is the thing under test. */
+private fun elements(property: String): SourceFile = SourceFile.kotlin(
+    "Order.kt",
+    """
+    package demo
+
+    import io.github.kdiff.annotations.Diffable
+
+    @Diffable
+    data class Address(val id: String, val street: String)
+
+    @Diffable
+    data class Order(
+        $property
+    )
+    """.trimIndent(),
+)
 
 /** `Order` lands on line 11 and its first property on line 12, so locations can be asserted. */
 private fun tracking(annotations: String, properties: String): SourceFile = SourceFile.kotlin(
@@ -351,6 +392,168 @@ class DiagnosticSpec :
 
             result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
             result.messages shouldContain "does not implement Differ of that property's type"
+        }
+
+        test("@Diffable on an object says an object in a sealed hierarchy needs no annotation") {
+            val result = compile(
+                SourceFile.kotlin(
+                    "Registry.kt",
+                    """
+                package demo
+
+                import io.github.kdiff.annotations.Diffable
+
+                @Diffable
+                object Registry
+                    """.trimIndent(),
+                ),
+            )
+
+            result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+            result.messages shouldContain
+                "Registry is an object, and an object in a @Diffable sealed hierarchy needs no annotation of its own"
+        }
+
+        context("a collection whose elements are nullable and reached through a differ") {
+            test("a list of nullable annotated elements is rejected at the property") {
+                val result = compile(elements("val stops: List<Address?>"))
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                result.messages shouldContain
+                    "kdiff cannot compare stops: its elements are nullable demo.Address, and elements " +
+                    "compared by a differ cannot be null; declare them non-null, or point the property " +
+                    "at a hand-written differ with @DiffWith"
+                result.messages shouldContain "Order.kt:10"
+            }
+
+            test("a map of nullable annotated values is rejected at the property") {
+                val result = compile(elements("val byRegion: Map<String, Address?>"))
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                result.messages shouldContain
+                    "kdiff cannot compare byRegion: its values are nullable demo.Address, and values " +
+                    "compared by a differ cannot be null; declare them non-null, or point the property " +
+                    "at a hand-written differ with @DiffWith"
+            }
+
+            test("a list of nullable values compiles, because equality is defined for null") {
+                val result = compile(elements("val notes: List<String?>"))
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+            }
+
+            test("a set of nullable annotated elements compiles, because a set compares by membership") {
+                val result = compile(elements("val visited: Set<Address?>"))
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+            }
+        }
+
+        context("comparison annotations with nothing to configure") {
+            listOf(
+                "@DiffIgnore" to "@DiffIgnore val note: String",
+                "@DiffKey" to "@DiffKey val id: String",
+                "@DiffWith" to "@DiffWith(MoneyDiffer::class) val total: Money",
+            ).forEach { (name, usage) ->
+                test("$name on a property of a class that is not @Diffable is rejected") {
+                    val result = compile(undiffable(usage))
+
+                    result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                    result.messages shouldContain "$name on ${usage.substringAfter("val ").substringBefore(":")} " +
+                        "requires @Diffable on Order"
+                    result.messages shouldContain "without a generated differ it has no effect"
+                    result.messages shouldContain "Order.kt:14"
+                }
+            }
+
+            test("@DiffWith on a @DiffIgnore property is rejected as a conflict") {
+                val result = compile(
+                    SourceFile.kotlin(
+                        "Invoice.kt",
+                        """
+                    package demo
+
+                    import io.github.kdiff.annotations.DiffIgnore
+                    import io.github.kdiff.annotations.DiffWith
+                    import io.github.kdiff.annotations.Diffable
+                    import io.github.kdiff.runtime.Differ
+                    import io.github.kdiff.runtime.differ
+
+                    class Money(val amount: String)
+
+                    object MoneyDiffer : Differ<Money> by differ({ field(Money::amount) })
+
+                    @Diffable
+                    data class Invoice(
+                        val id: String,
+                        @DiffIgnore @DiffWith(MoneyDiffer::class) val total: Money,
+                    )
+                        """.trimIndent(),
+                    ),
+                )
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                result.messages shouldContain "@DiffWith on total conflicts with @DiffIgnore"
+                result.messages shouldContain "an ignored property is never compared"
+            }
+
+            // A key identifies an element; ignoring the same property excludes it from that element's own
+            // comparison. The two answer different questions, so together they are not a conflict.
+            test("@DiffKey beside @DiffIgnore compiles and still keys the list") {
+                val result = compile(
+                    SourceFile.kotlin(
+                        "Order.kt",
+                        """
+                    package demo
+
+                    import io.github.kdiff.annotations.DiffIgnore
+                    import io.github.kdiff.annotations.DiffKey
+                    import io.github.kdiff.annotations.Diffable
+
+                    @Diffable
+                    data class Address(@DiffKey @DiffIgnore val id: String, val city: String)
+
+                    @Diffable
+                    data class Order(val addresses: List<Address>)
+
+                    object Fixture {
+                        val before = Order(listOf(Address("A1", "Paris"), Address("A2", "Nice")))
+                        val after = Order(listOf(Address("A2", "Nice"), Address("A1", "Lyon")))
+                    }
+                        """.trimIndent(),
+                    ),
+                )
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+
+                // The moves prove the list is still keyed by `id`; the absence of an `.id` path proves
+                // `@DiffIgnore` still excludes it from the element's own comparison.
+                result.diffFixture("demo.OrderDiffer").changes.map { it.path.toString() } shouldContainExactly
+                    listOf("addresses[id=A1]", "addresses[id=A1].city", "addresses[id=A2]")
+            }
+
+            test("a rejected comparison annotation blocks the build alongside a valid class") {
+                val result = compile(
+                    SourceFile.kotlin(
+                        "Model.kt",
+                        """
+                    package demo
+
+                    import io.github.kdiff.annotations.DiffIgnore
+                    import io.github.kdiff.annotations.Diffable
+
+                    @Diffable
+                    data class Person(val id: String, val name: String)
+
+                    data class Loose(@DiffIgnore val note: String)
+                        """.trimIndent(),
+                    ),
+                )
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                result.messages shouldContain "@DiffIgnore on note requires @Diffable on Loose"
+                result.messages shouldNotContain "on Person"
+            }
         }
     })
 

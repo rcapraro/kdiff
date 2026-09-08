@@ -59,8 +59,23 @@ smear, because recovering that would need an edit-distance search kdiff delibera
 ### Why was a null becoming a value reported as a change rather than an addition?
 
 A property's path exists on both sides or on neither, so `Added` and `Removed` are reserved for
-collection elements and map entries. Null on both sides is not a change at all. →
-[Values, enums and nullables](diffing.md#values-enums-and-nullables)
+collection elements and map entries. Null on both sides is not a change at all. This holds for a
+nullable *collection* too: a `List<E>?` appearing is one change at the property, not an addition per
+element. → [Values, enums and nullables](diffing.md#values-enums-and-nullables)
+
+### Why can I not put `@Diffable` on my `data object`?
+
+Because it would configure nothing. An `object` subclass of a `@Diffable` sealed type is dispatched on
+without any annotation: it has no property to compare, ignore or key, so a differ for it would have
+nothing to do. Drop the annotation and the hierarchy compiles. →
+[A payload-free case](diffing.md#a-payload-free-case)
+
+### Why will kdiff not compare my `List<Address?>`?
+
+A differ takes an instance, so it has nothing to compare a null element against — and a keyed list
+could not read a key off one. It is a compile error rather than a silent fallback. `List<String?>` is
+fine, because equality is defined for null, and so is any `Set`. →
+[Errors](errors.md#a-collection-whose-elements-are-nullable-and-reached-through-a-differ)
 
 ### Can I compare every `BigDecimal` in my model by `compareTo`?
 
