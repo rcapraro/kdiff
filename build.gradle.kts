@@ -18,7 +18,7 @@ subprojects {
     apply(plugin = "dev.detekt")
 
     group = "io.github.kdiff"
-    version = "0.5.0"
+    version = "0.6.0"
 
     extensions.configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
         version.set(ktlintToolVersion)

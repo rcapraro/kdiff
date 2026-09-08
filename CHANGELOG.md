@@ -11,6 +11,8 @@ entry written for someone deciding whether to upgrade.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-08
+
 Three ordinary Kotlin shapes that the processor could not handle now work, and each of them failed in a
 way the project's own rules forbid: an error inside generated code, an annotation that silently did
 nothing, or two diagnostics pointing at each other with no way through.
@@ -311,7 +313,8 @@ First release.
 
 - JDK 17 or later; built against a JVM 21 toolchain, Kotlin 2.4.10 and KSP 2.3.11.
 
-[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/rcapraro/kdiff/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rcapraro/kdiff/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rcapraro/kdiff/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/rcapraro/kdiff/compare/v0.3.0...v0.3.1
