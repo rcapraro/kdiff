@@ -14,7 +14,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   publish:
@@ -48,14 +47,31 @@ jobs:
 
       - run: ./gradlew check --no-daemon
 
-      - name: Publish to GitHub Packages
-        run: ./gradlew publish --no-daemon
+      # One deployment for the three modules, released automatically once the Portal validates it.
+      # The Portal rejects a version it has already released, which is why re-running a tag is safe.
+      - name: Publish to Maven Central
+        run: ./gradlew publishAndReleaseToMavenCentral --no-daemon
         env:
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
 
       - name: Build the release notes from the changelog
-        run: ./.github/scripts/changelog-section.sh "${{ steps.version.outputs.version }}" > notes.md
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ./.github/scripts/changelog-section.sh "$VERSION" > notes.md
+          cat >> notes.md <<EOF
+
+          ## Coordinates
+
+          \`\`\`kotlin
+          implementation("io.github.rcapraro:kdiff-annotations:$VERSION")
+          implementation("io.github.rcapraro:kdiff-runtime:$VERSION")
+          ksp("io.github.rcapraro:kdiff-processor:$VERSION")
+          \`\`\`
+          EOF
 
       - name: Create or update the release
         env:

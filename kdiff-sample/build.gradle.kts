@@ -18,6 +18,7 @@ dependencies {
 // sample is edited and `check` passes on a stale result — which is exactly when the check matters.
 tasks.test {
     systemProperty("kdiff.repoRoot", rootProject.projectDir.absolutePath)
+    systemProperty("kdiff.group", project.group.toString())
     systemProperty("kdiff.version", project.version.toString())
 
     inputs.files(rootProject.file("README.md"), rootProject.file("CONTRIBUTING.md"))

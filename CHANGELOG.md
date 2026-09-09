@@ -11,6 +11,148 @@ entry written for someone deciding whether to upgrade.
 
 ## [Unreleased]
 
+### Added
+
+- **The types a domain model is full of are values now, with no annotation.** `BigDecimal`,
+  `BigInteger`, `UUID`, `Currency`, `Locale`, `URI`, every `java.time` value type (`Instant`,
+  `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetDateTime`, `OffsetTime`, `ZonedDateTime`,
+  `Duration`, `Period`, `Year`, `YearMonth`, `MonthDay`, `ZoneId`, `ZoneOffset`), `kotlin.time.Instant`
+  and `kotlin.uuid.Uuid` are compared by equality wherever they appear — as a property, as a list
+  element, as a map value. The criterion is written down so the list can be read rather than
+  remembered: immutable, equal by value, from the JDK or the Kotlin standard library. `java.util.Date`
+  is deliberately not on it.
+
+  Each of these previously cost an `object` implementing `Differ` plus a `@DiffWith` on every property
+  holding one, to express the one comparison kdiff already knew how to do. If you wrote such a differ,
+  you may delete it and the annotation; nothing forces you to.
+
+  One caveat in writing: `BigDecimal`'s `equals` is scale-sensitive, so `10` and `10.00` report a
+  change. A numeric comparison is still a `@DiffWith` differ's business.
+
+- **An inline `value class` is a value.** A class declared `value class` is compared by equality
+  wherever it appears, with no annotation on it or on the property. `kotlin.time.Duration` is one, so
+  it needs no place on the list above.
+
+- **`@DiffAsValue` declares that a type, or one property, compares as a single value.** On a class,
+  every property, list element and map value of that type is compared by equality, in every
+  `@Diffable` class that reaches it — the per-type declaration the FAQ used to say did not exist. On a
+  property, that property alone is compared as one value whatever its type: `@DiffAsValue val billing:
+  Address` reports one change at `billing`, and `@DiffAsValue val tags: List<String>` one change at
+  `tags`. It is the annotation counterpart of the `differ { }` builder's `field`, so the annotated and
+  hand-written routes can once again describe the same model.
+
+  A `@DiffAsValue` that could change nothing is a compile error — on an enum, a `value class`, or a
+  property whose type is already a value — and so is one that contradicts another declaration: beside
+  `@Diffable` on a class, or beside `@DiffWith` or `@DiffIgnore` on a property.
+
+- The "cannot compare" diagnostic now names three ways out instead of two: `@Diffable` on the type,
+  `@DiffAsValue` on the property, or `@DiffWith`.
+
+- **`Differ` and `Patcher` are functional interfaces.** A one-off differ can be written where it is
+  used — `Differ<Money> { before, after -> … }` — and so can a patcher. Source- and binary-compatible;
+  the recorded API does not move. The descent-bound caveat an `object : Differ<T>` already carried
+  applies to the lambda form too, and is now stated for both.
+
+- **`Segment.Key.MAP_ENTRY` is the declared name a map entry's key segment carries**, replacing the
+  `"key"` literal in the runtime. Its value is unchanged, so every rendered `amounts[key=eur]` and
+  every assertion on one reads as before — but a hand-written differ or patcher building a map path can
+  now name the constant, and a reader of that path can find where `key` comes from.
+
+- **[`docs/api-stability.md`](docs/api-stability.md)** states what `1.0.0` will promise: the recorded
+  public API of the three published modules, the two closed vocabularies and the three declared
+  exception types, which types are data classes and by what criterion, what generated code guarantees
+  and what in a generated file is not API, what is explicitly not API at all, and the JVM platform. It
+  also records the questions answered "no" — a typed `Diff<T>`, `TypeChanged` carrying classes rather
+  than names, a common exception supertype — each with its reason.
+
+### Changed
+
+- **BREAKING** — **kdiff is published to Maven Central, and the group id changes.** A consumer needs
+  `mavenCentral()`, which every Gradle build already declares, and nothing else: no repository block, no
+  personal access token, no `401`. GitHub Packages is no longer published to.
+
+  The group id is now `io.github.rcapraro` — a namespace Central can verify against the maintainer's
+  GitHub account, which `io.github.kdiff` is not. **Package names do not change**, so no import moves:
+
+  ```kotlin
+  // before — GitHub Packages, with a repository block and a token
+  implementation("io.github.kdiff:kdiff-annotations:0.6.0")
+  implementation("io.github.kdiff:kdiff-runtime:0.6.0")
+  ksp("io.github.kdiff:kdiff-processor:0.6.0")
+
+  // after — Maven Central, nothing else to declare
+  implementation("io.github.rcapraro:kdiff-annotations:0.6.0")
+  implementation("io.github.rcapraro:kdiff-runtime:0.6.0")
+  ksp("io.github.rcapraro:kdiff-processor:0.6.0")
+  ```
+
+  *Migration*: change the group id on the three coordinates and delete the
+  `maven.pkg.github.com/rcapraro/kdiff` repository block, along with the `gpr.user`/`gpr.key`
+  properties it read. Imports stay `io.github.kdiff.*`.
+
+- **Every published module now ships a sources jar and a documentation jar**, both signed, as Central
+  requires. *Go to declaration* on `Differ`, `Change` or any runtime helper lands on the Kotlin source
+  with its KDoc instead of decompiled bytecode — the KDoc in `kdiff-runtime` carries the *why* of every
+  helper, and until now it was only readable by cloning the repository.
+
+- **BREAKING** — `Patched<T>` is removed; the patch helpers return `PatchResult<T>`. `patchValue`,
+  `patchNested`, `patchNestedNullable`, `patchNullable`, `patchKeyedList`, `patchPositionalList`,
+  `patchSet`, `patchMap`, `unpatchable` and `notConstructorProperty` all return the type a
+  `Patcher.apply` returns, so a helper's result carries `isClean` and `getOrThrow()` too. The two types
+  had identical shape, and `patchNested` existed partly to convert one into the other.
+
+  *Migration*: rename `Patched` to `PatchResult`; the members are the same. A hand-written patcher that
+  only reads `.value` and `.failures` — which is every example in the docs — compiles unchanged, and so
+  does generated code, which reads the same two members.
+
+- **BREAKING** — `Diff` is no longer a data class. It keeps its constructor, its `changes`, its
+  equality over those changes and every member it had; it loses `copy` and `component1`, which would
+  have fixed `Diff`'s shape forever. Its `toString()` is now the text `render()` produces, so a diff
+  printed in a log line or an assertion failure reads as a diff — over several lines when it holds
+  several changes.
+
+  *Migration*: build a new `Diff(changes)` instead of `diff.copy(changes = …)`, and read `diff.changes`
+  instead of destructuring. A caller that wants a diff on one line has `changes.toString()` or `size`.
+
+### Fixed
+
+- **BREAKING** — a comparison annotation on a property a `@Diffable` **sealed parent** declares is now
+  honoured by a subclass that overrides it. Kotlin puts none of an overridden declaration's annotations
+  on the `override`, so `@DiffAsValue`, `@DiffIgnore` and `@DiffWith` on a sealed parent's property held
+  across a subclass swap — where the parent's own properties are compared — and were silently ignored
+  for two instances of one subclass, which is the common case. If your model looks like this, its diffs
+  change:
+
+  ```kotlin
+  @Diffable
+  sealed interface Shipment {
+      @DiffAsValue val origin: Address
+  }
+
+  @Diffable
+  data class Parcel(override val origin: Address, val tracking: String) : Shipment
+  ```
+
+  Two `Parcel`s differing inside `origin` now report one change at `origin`; they reported changes at
+  `origin.city` and the like before. `@DiffIgnore` there now excludes the property where it did not.
+
+  *Migration*: nothing to edit — the new behaviour is what the annotated source always asked for. But a
+  test or a consumer asserting on the old paths sees them move, so check any assertion naming a path
+  beneath such a property. To keep the old behaviour, remove the annotation from the parent; to have it
+  apply to one subclass only, annotate that subclass's override, which wins over the parent's.
+
+- A generated differ is now regenerated when a `value class` or `enum class` it compared as a value is
+  edited. Only `@DiffAsValue` recorded the declaring file before, so an incremental build could keep a
+  differ that a clean build refuses: redeclaring `@JvmInline value class Sku(val code: String)` as an
+  ordinary type left the generated `compareValue("sku", …)` in place and compiling, while a clean build
+  failed with *kdiff cannot compare sku of type demo.Sku*. Builds now agree; the cost is that editing
+  such a type regenerates the differs that read it.
+
+Nothing else that compiled before means anything different, and the generated code for an existing
+class is unchanged unless it is a subclass overriding an annotated property. `kdiff-annotations` gains
+one annotation; `kdiff-runtime`'s recorded API moves exactly where the two breaks above say it does,
+and `kdiff-processor` adds no public declaration.
+
 ## [0.6.0] - 2026-09-08
 
 Three ordinary Kotlin shapes that the processor could not handle now work, and each of them failed in a

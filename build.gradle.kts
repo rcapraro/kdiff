@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.ktlint) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.dokka) apply false
+    alias(libs.plugins.maven.publish.base) apply false
 }
 
 val publishedModules = setOf("kdiff-annotations", "kdiff-runtime", "kdiff-processor")
@@ -17,7 +18,7 @@ subprojects {
     apply(plugin = "org.jlleitschuh.gradle.ktlint")
     apply(plugin = "dev.detekt")
 
-    group = "io.github.kdiff"
+    group = "io.github.rcapraro"
     version = "0.6.0"
 
     extensions.configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
@@ -97,50 +98,46 @@ subprojects {
         // nobody reads locally. Run `./gradlew dokkaGenerate` when it is wanted.
         apply(plugin = "org.jetbrains.dokka")
 
-        apply(plugin = "maven-publish")
+        apply(plugin = "com.vanniktech.maven.publish.base")
 
-        extensions.configure<PublishingExtension> {
-            publications {
-                register<MavenPublication>("maven") {
-                    from(components["java"])
-                    pom {
-                        name.set(project.name)
-                        description.set(
-                            "Annotation-driven structural diff, patch and change tracking for Kotlin",
-                        )
-                        url.set("https://github.com/rcapraro/kdiff")
-                        licenses {
-                            license {
-                                name.set("MIT License")
-                                url.set("https://github.com/rcapraro/kdiff/blob/main/LICENSE")
-                            }
-                        }
-                        developers {
-                            developer {
-                                id.set("rcapraro")
-                                url.set("https://github.com/rcapraro")
-                            }
-                        }
-                        scm {
-                            url.set("https://github.com/rcapraro/kdiff")
-                            connection.set("scm:git:https://github.com/rcapraro/kdiff.git")
-                            developerConnection.set("scm:git:ssh://git@github.com/rcapraro/kdiff.git")
-                        }
+        extensions.configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
+            // Stated rather than left to the plugin's platform detection, which is `@Incubating`, and
+            // so the javadoc jar is visibly the Dokka HTML this module already knows how to build.
+            configure(
+                com.vanniktech.maven.publish.KotlinJvm(
+                    javadocJar = com.vanniktech.maven.publish.JavadocJar.Dokka("dokkaGeneratePublicationHtml"),
+                ),
+            )
+
+            publishToMavenCentral()
+
+            // Central requires signatures, and only the release workflow holds the key: a local
+            // `publishToMavenLocal` has no signatory, and demanding one would make the artifacts of a
+            // release impossible to inspect before tagging it.
+            if (providers.gradleProperty("signingInMemoryKey").isPresent) signAllPublications()
+
+            pom {
+                name.set(project.name)
+                description.set(
+                    "Annotation-driven structural diff, patch and change tracking for Kotlin",
+                )
+                url.set("https://github.com/rcapraro/kdiff")
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://github.com/rcapraro/kdiff/blob/main/LICENSE")
                     }
                 }
-            }
-            repositories {
-                maven {
-                    name = "GitHubPackages"
-                    url = uri("https://maven.pkg.github.com/rcapraro/kdiff")
-                    credentials {
-                        username = providers.gradleProperty("gpr.user")
-                            .orElse(providers.environmentVariable("GITHUB_ACTOR"))
-                            .orNull
-                        password = providers.gradleProperty("gpr.key")
-                            .orElse(providers.environmentVariable("GITHUB_TOKEN"))
-                            .orNull
+                developers {
+                    developer {
+                        id.set("rcapraro")
+                        url.set("https://github.com/rcapraro")
                     }
+                }
+                scm {
+                    url.set("https://github.com/rcapraro/kdiff")
+                    connection.set("scm:git:https://github.com/rcapraro/kdiff.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/rcapraro/kdiff.git")
                 }
             }
         }

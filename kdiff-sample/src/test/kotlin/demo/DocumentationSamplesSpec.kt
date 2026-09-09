@@ -63,7 +63,21 @@ private val publishedVersion = System.getProperty("kdiff.version")
     ?: error("kdiff.version is not set; the test must be run through Gradle")
 
 /**
- * Every `io.github.kdiff:<module>:<version>` on a page, wherever it sits.
+ * The group id every published coordinate on these pages must name.
+ *
+ * Read from the build rather than written here: the group id is a namespace the maintainer has to
+ * verify, so it can move without a line of Kotlin moving, and a page naming the old one is a reader
+ * copying coordinates that do not resolve.
+ */
+private val publishedGroup = System.getProperty("kdiff.group")
+    ?: error("kdiff.group is not set; the test must be run through Gradle")
+
+/**
+ * Every `<group>:kdiff-<module>:<version>` on a page, wherever it sits.
+ *
+ * Matched on the module rather than on the group id, so that a page naming a group id the library no
+ * longer publishes under *fails* the check instead of falling out of it: a coordinate scoped to the
+ * current group would simply stop seeing the stale one.
  *
  * Deliberately over the whole page rather than over fenced Kotlin blocks: a coordinate is just as
  * wrong in prose or in a shell snippet, and scanning the text needs no opinion about which fence it
@@ -72,15 +86,14 @@ private val publishedVersion = System.getProperty("kdiff.version")
  * A version held in a variable — `kdiff-runtime:$kdiffVersion`, or `${'$'}{libs.versions.kdiff}` — is
  * skipped rather than compared. It cannot go stale, since whatever it resolves to is not written here.
  */
-private val COORDINATE = Regex("""io\.github\.kdiff:[\w-]+:([^"'\s)]+)""")
+private val COORDINATE = Regex("""([\w.]+):(kdiff-[\w-]+):([^"'\s)]+)""")
 
 private fun String.isLiteralVersion(): Boolean = none { it == '$' || it == '{' }
 
 private fun File.staleCoordinates(): List<String> = COORDINATE.findAll(readText())
-    .map { it to it.groupValues[1] }
-    .filter { (_, version) -> version.isLiteralVersion() }
-    .filterNot { (_, version) -> version == publishedVersion }
-    .map { (match, _) -> "${relativePage()}: ${match.value}" }
+    .filter { it.groupValues[3].isLiteralVersion() }
+    .filterNot { it.groupValues[1] == publishedGroup && it.groupValues[3] == publishedVersion }
+    .map { "${relativePage()}: ${it.value}" }
     .toList()
 
 /** Every fenced Kotlin block on a page, with the source it claims to mirror when it declares one. */
@@ -131,7 +144,7 @@ class DocumentationSamplesSpec :
             pages.map { it.relativePage() }.shouldNotBeEmptyList()
         }
 
-        test("every published coordinate in the documentation names version $publishedVersion") {
+        test("every published coordinate in the documentation names $publishedGroup at version $publishedVersion") {
             coordinateBearingPages().flatMap { it.staleCoordinates() }.shouldBeEmpty()
         }
 

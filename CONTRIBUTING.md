@@ -117,17 +117,72 @@ unchecked block belongs:
   production code uses, and a handful are not asserted at all. So a reworded message can leave `check`
   green and the page wrong. **If you reword a message, search `docs/errors.md` for the old text.**
 
-The same spec pins the published version. Every `io.github.kdiff:<module>:<version>` on a documentation
-page — this one included, in a fenced block, a shell snippet or plain prose — must name the version the
-build publishes,
-which `kdiff-sample` passes its tests as `kdiff.version`. So an install snippet cannot survive a
-release that leaves it behind, and the version belongs in as few places as possible: the release notes
-are generated from `CHANGELOG.md`, and the README links to them rather than restating which release is
-current. A coordinate whose version is a variable — `kdiff-runtime:$kdiffVersion` — is skipped, since
-what it resolves to is not written on the page and cannot go stale.
+The same spec pins the published coordinates. Every `io.github.rcapraro:kdiff-<module>:<version>` on a
+documentation page — this one included, in a fenced block, a shell snippet or plain prose — must name
+the group id and the version the build publishes, which `kdiff-sample` passes its tests as
+`kdiff.group` and `kdiff.version`. So an install snippet cannot survive a release that leaves it
+behind, and the version belongs in as few places as possible: the release notes are generated from
+`CHANGELOG.md`, and the README links to them rather than restating which release is current. A
+coordinate whose version is a variable — `kdiff-runtime:$kdiffVersion` — is skipped, since what it
+resolves to is not written on the page and cannot go stale.
 
 ## Commits and pull requests
 
 Run `./gradlew check` before opening a pull request. Say which modules changed and whether the
 generated API surface changed — a change consumers must recompile or adapt to is breaking, and should
 say so.
+
+## Releasing
+
+A release is a tag. Pushing `vX.Y.Z` runs `.github/workflows/publish.yml`, which checks the tag against
+`version` in the root `build.gradle.kts`, runs `./gradlew check`, publishes the three published modules
+to Maven Central as one deployment, and creates or updates the GitHub release from that version's
+`CHANGELOG.md` section. So the changelog entry is written before the tag, and it is the only place a
+version is described.
+
+Before tagging, inspect what a release will produce, without publishing anything:
+
+```bash
+./gradlew publishToMavenLocal
+```
+
+Each published module lands under `~/.m2/repository/io/github/rcapraro/<module>/<version>/` as the jar,
+a `-sources.jar` holding the module's Kotlin sources, a `-javadoc.jar` holding Dokka's HTML, and a
+`.pom` carrying the name, description, url, licence, developer and scm entries Central validates.
+Nothing is signed locally — the signing key lives only in the workflow.
+
+Central takes a few minutes to sync after the workflow finishes. Confirm the release resolved:
+
+```bash
+curl -sI https://repo1.maven.org/maven2/io/github/rcapraro/kdiff-runtime/0.6.0/kdiff-runtime-0.6.0.pom
+```
+
+### One-time setup, and how to rotate it
+
+Four repository secrets drive the publish step. None of their values appears anywhere in this
+repository, and none is written to disk by the workflow.
+
+| secret | what it is | rotate by |
+|---|---|---|
+| `MAVEN_CENTRAL_USERNAME` | Central Portal user token name | generating a new token on the Portal's account page and replacing both halves |
+| `MAVEN_CENTRAL_PASSWORD` | Central Portal user token password | as above — the two are issued together |
+| `SIGNING_IN_MEMORY_KEY` | the ASCII-armoured PGP private key | generating a new key pair, publishing its public half, replacing the secret |
+| `SIGNING_IN_MEMORY_KEY_PASSWORD` | that key's passphrase | replacing it alongside the key |
+
+The namespace is verified once, not per release, and `io.github.rcapraro` already is — it is the
+namespace `kalidation` publishes under, carried over when Sonatype migrated OSSRH to the Portal. A
+namespace is verified by proving ownership of the matching GitHub account, in the way the Portal asks
+for at the time. The group id has to be a namespace the maintainer can verify; the packages stay
+`io.github.kdiff.*`, because Central has no opinion on package names and renaming packages would break
+every consumer's imports for nothing.
+
+The signing key is also the one `kalidation` is signed with — RSA 3072,
+`EE270165E7B4128473CD14A3C593BBA5D2F9A1DC`, no expiry — whose public half is already on
+`keyserver.ubuntu.com` and `pgp.mit.edu`, two of the three keyservers Central consults. The primary key
+is the signing key, so `signingInMemoryKeyId` is not needed. If the private half is lost, artifacts
+already published stay valid — signatures are checked against the public key, which is already out
+there. Generate a new pair and publish its public half before the next release.
+
+The first tagged release after a namespace or key change is the one worth watching: the Portal rejects a
+bundle it will not accept rather than publishing a broken one, and it rejects a re-upload of a version
+it has already released, which is why re-running a tag through `workflow_dispatch` is safe.

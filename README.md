@@ -44,33 +44,8 @@ you care about.
 
 ## Install
 
-> **GitHub Packages requires authentication for every consumer**, including for public packages.
-> Without a token you will get a `401` that does not obviously mean "add a token". You need a
-> personal access token with the `read:packages` scope.
-
-Add the repository, reading credentials from the environment or `~/.gradle/gradle.properties` rather
-than inlining them:
-
-<!-- illustrative -->
-```kotlin
-// settings.gradle.kts
-dependencyResolutionManagement {
-    repositories {
-        mavenCentral()
-        maven {
-            url = uri("https://maven.pkg.github.com/rcapraro/kdiff")
-            credentials {
-                username = providers.gradleProperty("gpr.user").orNull
-                    ?: System.getenv("GITHUB_ACTOR")
-                password = providers.gradleProperty("gpr.key").orNull
-                    ?: System.getenv("GITHUB_TOKEN")
-            }
-        }
-    }
-}
-```
-
-Then apply KSP and declare the dependencies:
+Published to Maven Central, so the repository every Gradle build already declares is all you need.
+Apply KSP and declare the dependencies:
 
 <!-- illustrative -->
 ```kotlin
@@ -81,11 +56,14 @@ plugins {
 }
 
 dependencies {
-    implementation("io.github.kdiff:kdiff-annotations:0.6.0")
-    implementation("io.github.kdiff:kdiff-runtime:0.6.0")
-    ksp("io.github.kdiff:kdiff-processor:0.6.0")
+    implementation("io.github.rcapraro:kdiff-annotations:0.6.0")
+    implementation("io.github.rcapraro:kdiff-runtime:0.6.0")
+    ksp("io.github.rcapraro:kdiff-processor:0.6.0")
 }
 ```
+
+Imports are `io.github.kdiff.*`: Central verifies group ids, not package names, and the packages carry
+the library's name.
 
 The processor goes on the `ksp` configuration, never `implementation`. That is what keeps it off your
 runtime classpath — it runs inside the compiler and has no business being shipped.
@@ -196,11 +174,14 @@ The full documentation is in **[docs/](docs/README.md)**. Three routes in:
 
 ## Status
 
-Released and published to GitHub Packages. The [changelog](CHANGELOG.md) says what each version
-changed and the [releases](https://github.com/rcapraro/kdiff/releases) page carries the same notes —
-between them they are the only description of a version, so this page does not repeat one.
+Released and published to Maven Central, with sources and documentation jars. The
+[changelog](CHANGELOG.md) says what each version changed and the
+[releases](https://github.com/rcapraro/kdiff/releases) page carries the same notes — between them they
+are the only description of a version, so this page does not repeat one.
 
-No compatibility guarantee is offered before `1.0.0`, and
+No compatibility guarantee is offered before `1.0.0`.
+[API stability](docs/api-stability.md) says what `1.0.0` will promise — what is recorded, what is
+closed, and which questions were answered "no" — and
 [what kdiff does not do](docs/architecture.md#what-kdiff-does-not-do) is worth reading before adopting
 it.
 
