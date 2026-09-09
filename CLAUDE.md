@@ -14,7 +14,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./gradlew ktlintFormat                            # fix formatting; `check` runs ktlintCheck
 ./gradlew updateKotlinAbi                         # record a deliberate public API change
 ./gradlew :kdiff-benchmarks:jmh -Pjmh.includes=compare   # measure before claiming a hot path is free
+./gradlew dokkaGenerate                           # build the reference docs from KDoc
 ```
+
+JVM 21 toolchain; Gradle provisions it. `.github/workflows/ci.yml` runs `./gradlew check` and
+nothing else — CI adds no second command, by design (`build-quality-gates`).
 
 `check` also runs detekt (config: `config/detekt/detekt.yml`, deviations only, each with its reason),
 `allWarningsAsErrors`, and ABI validation against the dump in `<module>/api/`. **Adding or removing a
@@ -43,6 +47,8 @@ generated code, and generated Kotlin a human would be happy to read.
 - `kdiff-sample` — consumes the processor end to end; doubles as the integration test.
 - `kdiff-tutorial` — the worked example behind `docs/tutorial.md`: an annotation-free domain described
   with `differ { }`, plus an annotated mirror that `AnnotatedParitySpec` holds to the same output.
+- `kdiff-benchmarks` — JMH, not published, not on any consumer's path. Where a performance claim is
+  settled before it is written down.
 
 `UNLIMITED_DEPTH = -1` is deliberately declared **twice**, in `kdiff-annotations` and in
 `kdiff-runtime`, with a comment in each saying why: an annotation default must be a compile-time
@@ -120,6 +126,16 @@ little is noticed the first time an expected callback does not arrive; a tracker
 the caller scoped out looks like a change they asked for. A real bug here silently reported the whole
 object; `TrackScopeCompositionSpec` exists to catch its return.
 
+## Docs are checked prose
+
+`docs/` is the published surface for behaviour, and three pages are pinned to code rather than to
+memory: `how-to.md` recipes are one-per-test in `kdiff-sample`'s `RecipesSpec`, `tutorial.md` is
+`kdiff-tutorial`, and `errors.md` quotes every diagnostic **verbatim**. Nothing in `check` compares a
+quoted message to the string the processor emits — so changing a `KSPLogger.error` message or a
+failure sentence means editing `errors.md` in the same commit. `docs/README.md` is the index.
+
+`CONTRIBUTING.md` covers the same build for a human contributor; when a command changes, both move.
+
 ## Processor conventions
 
 - KSP2 only; no KSP1 compatibility paths.
@@ -161,8 +177,9 @@ notes are generated from it, never typed separately.
 This repo is spec-driven. `openspec/config.yaml` is the authoritative source for the tech stack,
 per-artifact rules and operation guidance — **read it before planning a change**; do not restate or
 duplicate it elsewhere. `openspec/specs/` holds the current behaviour contracts
-(`diff-generation`, `diff-application`, `change-tracking`); `openspec/changes/archive/` holds
-completed changes with their proposal, design, delta specs and tasks.
+(`diff-generation`, `diff-application`, `change-tracking`, `build-quality-gates`);
+`openspec/changes/archive/` holds completed changes with their proposal, design, delta specs and
+tasks.
 
 Work through the slash commands rather than editing specs directly: `/opsx:propose` →
 `/opsx:apply` → `/opsx:archive` (archive is what syncs a delta into the main specs). Editing a main

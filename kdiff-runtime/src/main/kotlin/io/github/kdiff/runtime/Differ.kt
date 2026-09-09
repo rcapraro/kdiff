@@ -19,6 +19,6 @@ package io.github.kdiff.runtime
  * throws [CyclicStructureException] past that, so a cyclic graph is reported rather than exhausting
  * the stack.
  */
-public interface Differ<T> {
+public fun interface Differ<T> {
     public fun diff(before: T, after: T): Diff
 }

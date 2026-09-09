@@ -1,5 +1,6 @@
 package demo
 
+import io.github.kdiff.annotations.DiffAsValue
 import io.github.kdiff.annotations.DiffIgnore
 import io.github.kdiff.annotations.DiffWith
 import io.github.kdiff.annotations.Diffable
@@ -14,8 +15,18 @@ import io.github.kdiff.runtime.differ
 import io.github.kdiff.runtime.groupByProperty
 import io.github.kdiff.runtime.patchValue
 import io.github.kdiff.runtime.unmatchedFailures
+import java.math.BigDecimal
+import java.time.Instant
 
 enum class Status { OPEN, CLOSED }
+
+/** A `value class`, and so a value without saying so: its equality is its single property's. */
+@JvmInline
+value class Sku(val code: String)
+
+/** Declared a value, because a coordinate pair only means anything whole. */
+@DiffAsValue
+data class Coordinates(val lat: Double, val lon: Double)
 
 /** Stands in for a third-party type kdiff cannot be told about by annotating it. */
 class Money(val amount: String, val currency: String)
@@ -77,4 +88,37 @@ data class Order(
     val payment: Payment,
     @DiffWith(MoneyDiffer::class) val total: Money,
     @DiffWith(WeightDiffer::class) val weight: Weight,
+    /** A standard-library value: compared by equality, so `10` and `10.00` differ. */
+    val discount: BigDecimal,
+    val placedAt: Instant,
+    val sku: Sku,
+    val location: Coordinates,
 )
+
+/**
+ * The property-level route to a value: `Address` is `@Diffable`, and this property alone is one value.
+ *
+ * A change inside it reports at `at` and nothing beneath it — what `field(Site::at)` would report.
+ */
+@Diffable
+data class Site(val name: String, @DiffAsValue val at: Address)
+
+/**
+ * The inherited route to a value: declared on a sealed parent's property, honoured by every subclass
+ * that overrides it.
+ *
+ * Kotlin puts none of an overridden declaration's annotations on the `override`, so a subclass's
+ * differ reads them off the declaration it overrides. Without that, `@DiffAsValue` here would hold
+ * across a subclass swap — where the parent's own properties are compared — and be ignored for two
+ * instances of one subclass, which is the common case.
+ */
+@Diffable
+sealed interface Shipment {
+    @DiffAsValue val origin: Address
+}
+
+@Diffable
+data class Parcel(override val origin: Address, val tracking: String) : Shipment
+
+@Diffable
+data class Pallet(override val origin: Address, val height: String) : Shipment

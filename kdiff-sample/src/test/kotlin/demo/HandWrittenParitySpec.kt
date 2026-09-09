@@ -5,6 +5,8 @@ import io.github.kdiff.runtime.differ
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import java.math.BigDecimal
+import java.time.Instant
 
 /**
  * The same model described twice: once by annotation, once by hand.
@@ -49,6 +51,12 @@ private val OrderByHand: Differ<Order> = differ {
     nested(Order::payment, PaymentByHand)
     nested(Order::total, MoneyDiffer)
     nested(Order::weight, WeightDiffer)
+    // `field` is the hand-written counterpart of every route to a value: the built-in set, a
+    // `value class`, and `@DiffAsValue` on `Coordinates`.
+    field(Order::discount)
+    field(Order::placedAt)
+    field(Order::sku)
+    field(Order::location)
 }
 
 private val first = Address("A1", "1 Rue X", "Paris")
@@ -70,6 +78,10 @@ private val before = Order(
     payment = Card("10", "1234"),
     total = Money("10", "EUR"),
     weight = Weight("500"),
+    discount = BigDecimal("2.50"),
+    placedAt = Instant.EPOCH,
+    sku = Sku("SKU-1"),
+    location = Coordinates(48.85, 2.35),
 )
 
 private infix fun Order.agreesWith(after: Order) {
@@ -99,6 +111,10 @@ class HandWrittenParitySpec :
                 payment = Transfer("10", "FR76"),
                 total = Money("12", "EUR"),
                 weight = Weight("600"),
+                discount = BigDecimal("3.00"),
+                placedAt = Instant.ofEpochSecond(60),
+                sku = Sku("SKU-2"),
+                location = Coordinates(48.85, 2.40),
             )
 
             OrderDiffer.diff(before, after).changes.shouldNotBeEmpty()

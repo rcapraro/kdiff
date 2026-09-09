@@ -33,7 +33,7 @@ private object StopDiffer :
 private val repeated = listOf(Stop("A1", "Paris"), Stop("A1", "Nice"))
 private val unique = listOf(Stop("A1", "Paris"), Stop("A2", "Nice"))
 
-private fun patchStops(source: List<Stop>?, changes: List<Change>): Patched<List<Stop>?> =
+private fun patchStops(source: List<Stop>?, changes: List<Change>): PatchResult<List<Stop>?> =
     patchNullable(source, changes) { value, own ->
         patchKeyedList(value, own, StopDiffer, "stops", "id") { it.id }
     }

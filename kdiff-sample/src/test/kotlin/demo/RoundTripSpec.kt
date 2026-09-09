@@ -7,6 +7,8 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
+import java.math.BigDecimal
+import java.time.Instant
 
 private val a1 = Address("A1", "1 Rue X", "Paris")
 private val a2 = Address("A2", "2 Rue Y", "Lyon")
@@ -27,6 +29,10 @@ private val order = Order(
     payment = Card("10", "1234"),
     total = Money("10", "EUR"),
     weight = Weight("500"),
+    discount = BigDecimal("2.50"),
+    placedAt = Instant.EPOCH,
+    sku = Sku("SKU-1"),
+    location = Coordinates(48.85, 2.35),
 )
 
 /** The change's headline property: a diff applied to its own source reproduces the target. */
@@ -119,6 +125,27 @@ class RoundTripSpec :
             roundTripFrom(order.copy(total = Money("12", "EUR")))
         }
 
+        test("standard-library value types") {
+            roundTripFrom(order.copy(discount = BigDecimal("3.00"), placedAt = Instant.ofEpochSecond(90)))
+        }
+
+        test("a big decimal changing only in scale") {
+            roundTripFrom(order.copy(discount = BigDecimal("2.500")))
+        }
+
+        test("an inline value class") {
+            roundTripFrom(order.copy(sku = Sku("SKU-2")))
+        }
+
+        test("a type declared @DiffAsValue is set wholesale") {
+            val after = order.copy(location = Coordinates(48.85, 2.40))
+
+            val result = OrderDiffer.apply(order, OrderDiffer.diff(order, after).changes)
+
+            result.failures.shouldBeEmpty()
+            result.value.location shouldBe after.location
+        }
+
         test("everything at once") {
             roundTripFrom(
                 order.copy(
@@ -133,6 +160,10 @@ class RoundTripSpec :
                     amounts = mapOf("usd" to "7"),
                     payment = Transfer("99", "FR76"),
                     total = Money("99", "USD"),
+                    discount = BigDecimal("9.99"),
+                    placedAt = Instant.ofEpochSecond(99),
+                    sku = Sku("SKU-9"),
+                    location = Coordinates(1.0, 2.0),
                 ),
             )
         }

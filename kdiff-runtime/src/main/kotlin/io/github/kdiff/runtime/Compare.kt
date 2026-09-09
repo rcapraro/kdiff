@@ -298,7 +298,7 @@ public fun <K, V> MutableList<Change>.compareMap(
     // the bound is a step that only costs.
     if (differ == null) {
         before.forEach { (key, old) ->
-            val entry = Segment.Key("key", key)
+            val entry = Segment.Key(Segment.Key.MAP_ENTRY, key)
             if (key !in after) {
                 add(Removed(FieldPath(listOf(field, entry)), old))
                 return@forEach
@@ -309,7 +309,7 @@ public fun <K, V> MutableList<Change>.compareMap(
     } else {
         Descent.into(field, before) {
             before.forEach { (key, old) ->
-                val entry = Segment.Key("key", key)
+                val entry = Segment.Key(Segment.Key.MAP_ENTRY, key)
                 if (key !in after) {
                     add(Removed(FieldPath(listOf(field, entry)), old))
                     return@forEach
@@ -321,6 +321,6 @@ public fun <K, V> MutableList<Change>.compareMap(
 
     after.forEach { (key, new) ->
         if (key in before) return@forEach
-        add(Added(FieldPath(listOf(field, Segment.Key("key", key))), new))
+        add(Added(FieldPath(listOf(field, Segment.Key(Segment.Key.MAP_ENTRY, key))), new))
     }
 }

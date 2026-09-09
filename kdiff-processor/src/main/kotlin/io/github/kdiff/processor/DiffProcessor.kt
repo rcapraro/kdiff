@@ -34,6 +34,7 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         val (ready, deferred) = annotated.partition { it.validate() }
 
         reportAnnotationsWithoutDiffable(resolver)
+        reportValueDeclarations(resolver)
 
         ready.filterIsInstance<KSClassDeclaration>()
             .filter { it.isSupported() }
@@ -71,7 +72,7 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         // The comparison annotations are read only off a `@Diffable` class, so anywhere else each one
         // silently configures nothing — the same failure the tracking annotations above are refused
         // for, and the same remedy: name the annotation that is missing.
-        listOf(DIFF_KEY, DIFF_IGNORE, DIFF_WITH).forEach { annotation ->
+        listOf(DIFF_KEY, DIFF_IGNORE, DIFF_WITH, DIFF_AS_VALUE).forEach { annotation ->
             resolver.propertiesOutsideDiffable(annotation).forEach { property ->
                 logger.error(
                     "@${annotation.substringAfterLast('.')} on ${property.simpleName.asString()} " +
@@ -81,6 +82,34 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
                 )
             }
         }
+    }
+
+    /**
+     * A class-level `@DiffAsValue` that contradicts `@Diffable` or restates what kdiff already does.
+     *
+     * Swept over the whole module rather than per generated class, because the declaration is read off
+     * the *referenced* type and so has to be judged wherever it stands.
+     */
+    private fun reportValueDeclarations(resolver: Resolver) {
+        resolver.getSymbolsWithAnnotation(DIFF_AS_VALUE)
+            .filterIsInstance<KSClassDeclaration>()
+            .forEach { declaration ->
+                val name = declaration.simpleName.asString()
+                if (declaration.isDiffable()) {
+                    logger.error(
+                        "@DiffAsValue on $name conflicts with @Diffable; one compares the type as a " +
+                            "single value and the other property by property",
+                        declaration,
+                    )
+                    return@forEach
+                }
+                if (declaration.isIntrinsicValueType()) {
+                    logger.error(
+                        "@DiffAsValue on $name has no effect; $name is already compared as a value",
+                        declaration,
+                    )
+                }
+            }
     }
 
     /**
@@ -98,13 +127,33 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         var honourable = true
 
         getDeclaredProperties().forEach { property ->
-            if (!property.hasAnnotation(DIFF_WITH) || !property.hasAnnotation(DIFF_IGNORE)) return@forEach
-            logger.error(
-                "@DiffWith on ${property.simpleName.asString()} conflicts with @DiffIgnore; " +
-                    "an ignored property is never compared",
-                property,
-            )
-            honourable = false
+            val name = property.simpleName.asString()
+            val ignored = property.hasAnnotation(DIFF_IGNORE)
+            val differed = property.hasAnnotation(DIFF_WITH)
+
+            if (differed && ignored) {
+                logger.error(
+                    "@DiffWith on $name conflicts with @DiffIgnore; an ignored property is never compared",
+                    property,
+                )
+                honourable = false
+            }
+            if (!property.hasAnnotation(DIFF_AS_VALUE)) return@forEach
+
+            if (differed) {
+                logger.error(
+                    "@DiffAsValue on $name conflicts with @DiffWith; a property is compared one way",
+                    property,
+                )
+                honourable = false
+            }
+            if (ignored) {
+                logger.error(
+                    "@DiffAsValue on $name conflicts with @DiffIgnore; an ignored property is never compared",
+                    property,
+                )
+                honourable = false
+            }
         }
 
         return honourable
@@ -146,6 +195,11 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         val target = toClassName()
         val sources = mutableSetOf<KSFile>()
         containingFile?.let(sources::add)
+        // Recorded here, over *every* declared property rather than the compared ones, because a
+        // `Comparison` cannot carry what was consulted before it existed: a property an inherited
+        // `@DiffIgnore` excludes never reaches `resolve`, and a property annotated nowhere in its chain
+        // still read that chain. Both are edits that must regenerate this file (design D3).
+        getDeclaredProperties().forEach { property -> property.comparisonSources().forEach(sources::add) }
 
         val sealed = isSealedType()
 
@@ -372,8 +426,11 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         return body.unindent().add("}\n").build()
     }
 
+    // Filtered on the declaration the exclusion is written on, so `@DiffIgnore` on a sealed parent's
+    // property excludes it from a subclass that overrides it too (design D2). The filter is where the
+    // annotation takes effect, so inheriting it anywhere else would leave this one reading past it.
     private fun KSClassDeclaration.comparableProperties(): List<KSPropertyDeclaration> =
-        getDeclaredProperties().filterNot { it.hasAnnotation(DIFF_IGNORE) }.toList()
+        getDeclaredProperties().filterNot { it.comparisonDeclaration().hasAnnotation(DIFF_IGNORE) }.toList()
 
     /**
      * The tracking scope this class declares, or null when it declares none and so gets no scope.
@@ -434,7 +491,11 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
                 honourable = false
                 return@forEach
             }
-            if (property.hasAnnotation(DIFF_IGNORE)) {
+            // The one annotation check that asks about effect rather than authorship, so the one that
+            // reads the effective `@DiffIgnore` rather than the written one (design D4): a property
+            // excluded by a declaration it overrides produces no changes just as surely, and tracking
+            // it would still be two annotations that both stay silent.
+            if (property.comparisonDeclaration().hasAnnotation(DIFF_IGNORE)) {
                 logger.error(
                     "${if (ignored) "@TrackIgnore" else "@TrackDepth"} on $name conflicts with " +
                         "@DiffIgnore; an ignored property produces no changes and so can never be " +
@@ -472,10 +533,27 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
     private fun resolve(property: KSPropertyDeclaration): Comparison? {
         val type = property.type.resolve()
 
-        diffWithTarget(property)?.let { return it }
-        if (property.hasAnnotation(DIFF_WITH)) return null
+        // Annotations come from the declaration carrying them, the type from the property itself: an
+        // override is what is being compared, and only its annotations can be elsewhere (design D2).
+        // Identity, never the presence of a file: a declaration KSP read from a class file has none, so
+        // a cross-module inherited annotation would otherwise read as one written here.
+        val declared = property.comparisonDeclaration()
+        val inherited = declared !== property
 
-        if (type.isValueType()) return Comparison.ByValue
+        // The two rejections below suppress on different terms, because they refuse different things
+        // (design D4). A redundant `@DiffAsValue` is harmless — the property compares as a value either
+        // way — so an inherited one is never reported and never fails a build. A `@DiffWith` naming an
+        // unusable differ leaves the property uncomparable, so silence is not an option: it is reported
+        // unless the declaration carrying it is in this compilation, where its own class reports it once
+        // and at the right line. A declaration from a class file is reported by nobody.
+        val diffWithReportedElsewhere = inherited && declared.containingFile != null
+
+        diffWithTarget(property, declared, diffWithReportedElsewhere)?.let { return it }
+        if (declared.hasAnnotation(DIFF_WITH)) return null
+
+        if (declared.hasAnnotation(DIFF_AS_VALUE)) return declaredValue(property, type, inherited)
+
+        if (type.isValueType()) return Comparison.ByValue(type.declaredValueSources())
 
         type.declarationOrNull()?.takeIf { it.isDiffable() }?.let { nested ->
             return Comparison.Nested(nested.differClassName(), nested.file())
@@ -488,10 +566,37 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         logger.error(
             "kdiff cannot compare ${property.simpleName.asString()} of type " +
                 "${type.declaration.qualifiedName?.asString() ?: type}; annotate its type with " +
-                "@Diffable or point the property at a hand-written differ with @DiffWith",
+                "@Diffable, mark the property @DiffAsValue to compare it by equality, or point the " +
+                "property at a hand-written differ with @DiffWith",
             property,
         )
         return null
+    }
+
+    /**
+     * A property-level `@DiffAsValue`, which overrides classification for that property alone.
+     *
+     * Rejected where the property would be compared by equality without it, so the annotation never
+     * reads as configuration that is not in effect (design D5).
+     *
+     * That test reads the property type's own declaration, so its file joins the originating set even
+     * though the comparison did not come from it: annotating that type later turns this property into
+     * the rejection above, and an incremental build has to see it (design D7).
+     */
+    private fun declaredValue(property: KSPropertyDeclaration, type: KSType, inherited: Boolean): Comparison? {
+        // Rejected only where the annotation is written (design D4). Reporting an inherited one here
+        // would name a subclass that declared nothing and repeat one mistake once per subclass — and
+        // there is nothing to salvage by reporting it: the annotation is redundant precisely because the
+        // property already compares as a value, which is what this returns.
+        if (type.isValueType() && !inherited) {
+            logger.error(
+                "@DiffAsValue on ${property.simpleName.asString()} has no effect; " +
+                    "${type.declaration.qualifiedName?.asString() ?: type} is already compared as a value",
+                property,
+            )
+            return null
+        }
+        return Comparison.ByValue(type.declarationOrNull()?.file().orEmpty())
     }
 
     private fun resolveList(property: KSPropertyDeclaration, type: KSType): Comparison? {
@@ -513,7 +618,9 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
             }
         }
 
-        if (element.isValueType()) return Comparison.PositionalList(differ = null, sources = emptyList())
+        if (element.isValueType()) {
+            return Comparison.PositionalList(differ = null, sources = element.declaredValueSources())
+        }
         return unsupportedElement(property, element)
     }
 
@@ -525,7 +632,7 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
             if (value.isMarkedNullable) return nullableElement(property, "values", value)
             return Comparison.AsMap(declaration.differClassName(), declaration.file())
         }
-        if (value.isValueType()) return Comparison.AsMap(valueDiffer = null, sources = emptyList())
+        if (value.isValueType()) return Comparison.AsMap(valueDiffer = null, sources = value.declaredValueSources())
         return unsupportedElement(property, value)
     }
 
@@ -554,44 +661,54 @@ public class DiffProcessor(private val codeGenerator: CodeGenerator, private val
         logger.error(
             "kdiff cannot compare elements of ${property.simpleName.asString()} of type " +
                 "${type.declaration.qualifiedName?.asString() ?: type}; annotate that type with " +
-                "@Diffable or point the property at a hand-written differ with @DiffWith",
+                "@Diffable or @DiffAsValue, or point the property at a hand-written differ with @DiffWith",
             property,
         )
         return null
     }
 
-    /** Resolves `@DiffWith`, verifying the named class is an object implementing `Differ<P>`. */
-    private fun diffWithTarget(property: KSPropertyDeclaration): Comparison? {
-        val annotation = property.annotations.firstOrNull {
+    /**
+     * Resolves `@DiffWith`, verifying the named class is an object implementing `Differ<P>`.
+     *
+     * The annotation is read off [declared], which is [property] itself unless the property overrides
+     * one carrying it; the differ is checked against [property]'s own type, since that is what will be
+     * compared. [reportedElsewhere] suppresses the diagnostics, for the annotation whose own class in
+     * this compilation reports them instead (design D2, D4).
+     */
+    private fun diffWithTarget(
+        property: KSPropertyDeclaration,
+        declared: KSPropertyDeclaration,
+        reportedElsewhere: Boolean,
+    ): Comparison? {
+        val annotation = declared.annotations.firstOrNull {
             it.annotationType.resolve().declaration.qualifiedName?.asString() == DIFF_WITH
         } ?: return null
 
+        // Returning null refuses the property either way: `resolve` sees the annotation and stops. The
+        // message is what is suppressed, and only when another class in this compilation will give it.
+        fun reject(message: String): Comparison? {
+            if (!reportedElsewhere) logger.error(message, property)
+            return null
+        }
+
+        val propertyType = property.type.resolve()
         val argument = annotation.arguments.firstOrNull()?.value as? KSType
         val declaration = argument?.declarationOrNull()
-        if (declaration == null) {
-            logger.error("@DiffWith needs a differ class", property)
-            return null
-        }
+            ?: return reject("@DiffWith needs a differ class")
         if (declaration.classKind != ClassKind.OBJECT) {
-            logger.error(
-                "@DiffWith requires an object; ${declaration.simpleName.asString()} is not one",
-                property,
-            )
-            return null
+            return reject("@DiffWith requires an object; ${declaration.simpleName.asString()} is not one")
         }
-        if (!declaration.implementsDifferFor(property.type.resolve())) {
-            logger.error(
+        if (!declaration.implementsDifferFor(propertyType)) {
+            return reject(
                 "@DiffWith on ${property.simpleName.asString()} names " +
                     "${declaration.simpleName.asString()}, which does not implement Differ of that " +
                     "property's type",
-                property,
             )
-            return null
         }
         return Comparison.Nested(
             declaration.toClassName(),
             declaration.file(),
-            canPatch = declaration.implementsFor("Patcher", property.type.resolve()),
+            canPatch = declaration.implementsFor("Patcher", propertyType),
         )
     }
 

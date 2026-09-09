@@ -9,7 +9,7 @@ implementing `Differ<Type>`:
 
 <!-- from: kdiff-runtime/src/main/kotlin/io/github/kdiff/runtime/Differ.kt -->
 ```kotlin
-public interface Differ<T> {
+public fun interface Differ<T> {
     public fun diff(before: T, after: T): Diff
 }
 ```
@@ -120,6 +120,10 @@ addresses[id=A2].street
 tags[1]
 amounts[key=eur]
 ```
+
+A keyed list element names its `@DiffKey` property, so `addresses[id=A2]` reads off the model. A map
+entry has no such property — it is identified by its key — and the name its segment carries is the
+declared constant `Segment.Key.MAP_ENTRY`, which is where the `key` in `amounts[key=eur]` comes from.
 
 Every change is one of five kinds at one path, and a path is a list of three kinds of segment. Those
 two vocabularies are the whole model:
@@ -271,12 +275,25 @@ Routing reads only the diff, so it works the same whether the differ came from `
 
 ## Values, enums and nullables
 
-Primitives, `String` and enums are compared by equality and report a single `ValueChanged`:
+A value is compared by its own `equals` and reports a single `ValueChanged` carrying both sides.
+Primitives, `String`, enums, inline `value class`es, a documented set of immutable JDK and Kotlin
+standard-library types, and any type declared `@DiffAsValue` are all values — the full list and the
+criterion behind it are in
+[what counts as a value](annotations.md#what-counts-as-a-value):
 
 <!-- from: kdiff-sample/src/main/kotlin/demo/Model.kt -->
 ```kotlin
 enum class Status { OPEN, CLOSED }
 ```
+
+Equality is the type's own, and kdiff substitutes no other comparison for any type. So a `BigDecimal`
+differing only in scale — `10` against `10.00` — reports a change, which is what its `equals` says; a
+numeric comparison is [a hand-written differ's business](hand-written.md#when-the-dsl-is-not-enough).
+
+A value is a value in every position: as a property, as a list element, as a map value. And what is
+*not* a value is never compared as one by accident — a rich type with no `@Diffable`, `@DiffAsValue` or
+`@DiffWith` is [a compile error](errors.md#a-property-kdiff-cannot-compare) rather than an opaque
+comparison nobody asked for.
 
 A nullable property reports a null on either side as a value change, never as an addition or a
 removal — a property's path exists on both sides or on neither, so `Added` and `Removed` are reserved
@@ -432,6 +449,26 @@ data class Transfer(override val amount: String, val iban: String) : Payment
 
 When the parent declares no properties of its own, a subclass swap produces the type change alone.
 
+### The parent's comparison annotations apply in both branches
+
+`@DiffAsValue`, `@DiffIgnore` and `@DiffWith` on a property the sealed parent declares are honoured by
+every subclass that overrides it, as well as by the swap branch that compares the parent's properties
+directly:
+
+<!-- from: kdiff-sample/src/main/kotlin/demo/Model.kt -->
+```kotlin
+@Diffable
+sealed interface Shipment {
+    @DiffAsValue val origin: Address
+}
+```
+
+Two `Parcel`s differing inside `origin` report one change at `origin`, exactly as a `Parcel`-to-`Pallet`
+swap reports it. Kotlin puts none of an overridden declaration's annotations on the `override`, so a
+subclass's differ reads them off the declaration it overrides; a subclass that wants something
+different annotates its own override, which wins. The full rule is in
+[annotations.md](annotations.md#a-comparison-annotation-on-an-overridden-property).
+
 ### A payload-free case
 
 An `object` or `data object` subclass — the way Kotlin models a state with no payload — **needs no
@@ -462,6 +499,12 @@ reference   "R-1" -> "R-2"
 status      OPEN -> CLOSED
 payment     TYPE Card -> Transfer
 ```
+
+That text is also the diff's `toString()`, so a diff reaching a log line, a debugger or a test failure
+reads as a diff without the caller asking for its rendering. Several changes therefore print as
+several lines; `render()` stays as the explicit name for a call site that wants the text on purpose,
+and `changes.toString()` or `size` is there for one that wants a single line. An empty diff says
+`no changes` either way.
 
 `tree()` gives the same changes grouped into a hierarchy mirroring the object graph, so changes
 sharing a path prefix sit under it. Use it when you are rendering — a UI or a report that indents by

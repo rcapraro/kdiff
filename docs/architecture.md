@@ -178,9 +178,13 @@ fixed-arity list — seven weekday slots, a coordinate triple, a three-place ran
 the element's identity, and that guarantee is what stops kdiff reporting an addition and a removal for
 what is a change of position.
 
-**Custom comparison is per property, not per type.** `@DiffWith` points one property at one differ.
-Comparing every `BigDecimal` in a model by `compareTo` rather than `equals` means an annotation at each
-site; there is no global registration that says "compare this type this way everywhere".
+**A hand-written comparison is per property; comparing a type as one value is per type.** The two
+differ because of what each declaration has to carry. `@DiffWith` names *code*, which cannot be
+attached to a type you do not declare, so it points one property at one differ: comparing every
+`BigDecimal` in a model by `compareTo` means an annotation at each site, and there is no global
+registration. `@DiffAsValue` carries one bit — "this is a value" — and that can be attached to a type,
+so on a class it applies wherever the type appears, in every module that reaches it. Both are bounded
+by what the author can say about a declaration they own.
 
 **A comparison walks a tree, not an object graph.** There is no cross-graph identity: the same
 instance reached by two paths is compared twice, as two separate values. A self-reference through a
@@ -190,8 +194,9 @@ happily and reports at `next.next.name`.
 A genuine cycle no longer overflows the stack, **as long as the comparison descends through kdiff's
 own helpers** — which a generated differ always does, and a `differ { }` one does too. The bound lives
 in `compareNested`, the collection helpers and their patching counterparts; a hand-written
-`object : Differ<T>` that calls another differ directly bypasses it and can still overflow. Delegating
-through `compareNested` rather than calling `diff` yourself is what keeps that from being possible.
+`object : Differ<T>`, or the `Differ<T> { before, after -> … }` lambda that is the same shape written
+shorter, that calls another differ directly bypasses it and can still overflow. Delegating through
+`compareNested` rather than calling `diff` yourself is what keeps that from being possible.
 
 Where it applies, comparing and applying descend at most `MAX_DESCENT` (512) nested levels and then
 raise `CyclicStructureException`, naming the path they stopped at and saying whether an instance was

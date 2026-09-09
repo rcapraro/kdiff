@@ -19,12 +19,13 @@ private val rejections = listOf(
 
 private const val UNSUPPORTED_TARGET = "@Diffable is only supported on data classes and sealed types"
 
-/** `Order`'s first property lands on line 14, so locations can be asserted. */
+/** `Order`'s first property lands on line 15, so locations can be asserted. */
 private fun undiffable(properties: String): SourceFile = SourceFile.kotlin(
     "Order.kt",
     """
     package demo
 
+    import io.github.kdiff.annotations.DiffAsValue
     import io.github.kdiff.annotations.DiffIgnore
     import io.github.kdiff.annotations.DiffKey
     import io.github.kdiff.annotations.DiffWith
@@ -454,6 +455,7 @@ class DiagnosticSpec :
                 "@DiffIgnore" to "@DiffIgnore val note: String",
                 "@DiffKey" to "@DiffKey val id: String",
                 "@DiffWith" to "@DiffWith(MoneyDiffer::class) val total: Money",
+                "@DiffAsValue" to "@DiffAsValue val billing: Money",
             ).forEach { (name, usage) ->
                 test("$name on a property of a class that is not @Diffable is rejected") {
                     val result = compile(undiffable(usage))
@@ -462,7 +464,7 @@ class DiagnosticSpec :
                     result.messages shouldContain "$name on ${usage.substringAfter("val ").substringBefore(":")} " +
                         "requires @Diffable on Order"
                     result.messages shouldContain "without a generated differ it has no effect"
-                    result.messages shouldContain "Order.kt:14"
+                    result.messages shouldContain "Order.kt:15"
                 }
             }
 
@@ -555,7 +557,174 @@ class DiagnosticSpec :
                 result.messages shouldNotContain "on Person"
             }
         }
+
+        context("@DiffAsValue where it could change nothing or contradict something") {
+            test("on a class that is also @Diffable it is rejected at the declaration") {
+                val result = compile(
+                    valued("@Diffable @DiffAsValue data class Money(val amount: String)"),
+                )
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                result.messages shouldContain
+                    "@DiffAsValue on Money conflicts with @Diffable; one compares the type as a " +
+                    "single value and the other property by property"
+                result.messages shouldContain "Value.kt:7"
+            }
+
+            // A type on the built-in list cannot carry the annotation at all — nobody can annotate
+            // `BigDecimal` — so the reachable no-effect declarations are these two.
+            listOf(
+                "an enum" to ("Status" to "@DiffAsValue enum class Status { OPEN, CLOSED }"),
+                "a value class" to ("Email" to "@DiffAsValue @JvmInline value class Email(val value: String)"),
+            ).forEach { (kind, declaration) ->
+                val (name, source) = declaration
+
+                test("on $kind it is rejected as having no effect") {
+                    val result = compile(valued(source))
+
+                    result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                    result.messages shouldContain
+                        "@DiffAsValue on $name has no effect; $name is already compared as a value"
+                    result.messages shouldContain "Value.kt:7"
+                }
+            }
+
+            test("on a property whose type is already a value it is rejected at the property") {
+                val result = compile(
+                    valued(
+                        """
+                        @Diffable
+                        data class Invoice(
+                            @DiffAsValue val total: java.math.BigDecimal,
+                        )
+                        """.trimIndent(),
+                    ),
+                )
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                result.messages shouldContain
+                    "@DiffAsValue on total has no effect; java.math.BigDecimal is already compared as a value"
+                result.messages shouldContain "Value.kt:9"
+            }
+
+            test("beside @DiffWith on one property it is rejected as a conflict") {
+                val result = compile(
+                    valued(
+                        """
+                        class Money(val amount: String)
+
+                        object MoneyDiffer : Differ<Money> by differ({ field(Money::amount) })
+
+                        @Diffable
+                        data class Invoice(@DiffAsValue @DiffWith(MoneyDiffer::class) val total: Money)
+                        """.trimIndent(),
+                    ),
+                )
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                result.messages shouldContain
+                    "@DiffAsValue on total conflicts with @DiffWith; a property is compared one way"
+            }
+
+            test("beside @DiffIgnore on one property it is rejected as a conflict") {
+                val result = compile(
+                    valued(
+                        """
+                        @Diffable data class Address(val city: String)
+
+                        @Diffable
+                        data class Order(@DiffAsValue @DiffIgnore val note: Address)
+                        """.trimIndent(),
+                    ),
+                )
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                result.messages shouldContain
+                    "@DiffAsValue on note conflicts with @DiffIgnore; an ignored property is never compared"
+            }
+
+            // The key is refused by the rule that already covers a comparison annotation outside a
+            // `@Diffable` class: a type compared as one value generates no differ to read it.
+            test("a key on a type declared as a value is rejected") {
+                val result = compile(
+                    valued("@DiffAsValue data class Tag(@DiffKey val id: String, val label: String)"),
+                )
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                result.messages shouldContain "@DiffKey on id requires @Diffable on Tag"
+            }
+        }
+
+        context("the cannot-compare messages name @DiffAsValue as the third way out") {
+            test("a property kdiff cannot compare names all three") {
+                val result = compile(
+                    valued(
+                        """
+                        class Money(val amount: String)
+
+                        @Diffable
+                        data class Invoice(val total: Money)
+                        """.trimIndent(),
+                    ),
+                )
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                result.messages shouldContain
+                    "kdiff cannot compare total of type demo.Money; annotate its type with @Diffable, " +
+                    "mark the property @DiffAsValue to compare it by equality, or point the property at " +
+                    "a hand-written differ with @DiffWith"
+            }
+
+            test("elements kdiff cannot compare name the two type-level declarations") {
+                val result = compile(
+                    valued(
+                        """
+                        class Money(val amount: String)
+
+                        @Diffable
+                        data class Invoice(val lines: List<Money>)
+                        """.trimIndent(),
+                    ),
+                )
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+                result.messages shouldContain
+                    "kdiff cannot compare elements of lines of type demo.Money; annotate that type " +
+                    "with @Diffable or @DiffAsValue, or point the property at a hand-written differ " +
+                    "with @DiffWith"
+            }
+
+            test("the same property declared as a value compiles and is compared by equality") {
+                val result = compile(
+                    valued(
+                        """
+                        class Money(val amount: String)
+
+                        @Diffable
+                        data class Invoice(@DiffAsValue val total: Money)
+                        """.trimIndent(),
+                    ),
+                )
+
+                result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+                result.generatedSource("InvoiceDiff.kt") shouldContain "compareValue(\"total\""
+            }
+        }
     })
+
+/** A snippet whose first declaration lands on line 7, so locations can be asserted. */
+private fun valued(declarations: String): SourceFile = SourceFile.kotlin(
+    "Value.kt",
+    """
+    package demo
+
+    import io.github.kdiff.annotations.*
+    import io.github.kdiff.runtime.Differ
+    import io.github.kdiff.runtime.differ
+
+    $declarations
+    """.trimIndent(),
+)
 
 internal val diffWithSource = SourceFile.kotlin(
     "Invoice.kt",

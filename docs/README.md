@@ -32,6 +32,7 @@ five-minute overview are on the [project README](../README.md).
 | Guide | Covers |
 |---|---|
 | [Architecture](architecture.md) | The module graph, the axis the API is shaped along, what kdiff costs, and [what it deliberately does not do](architecture.md#what-kdiff-does-not-do) |
+| [API stability](api-stability.md) | What `1.0.0` will promise: what is recorded, what is closed, which types are data classes, and the questions answered "no" |
 
 ---
 

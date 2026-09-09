@@ -45,9 +45,6 @@ public final class io/github/kdiff/runtime/CyclicStructureException : java/lang/
 public final class io/github/kdiff/runtime/Diff : java/lang/Iterable, kotlin/jvm/internal/markers/KMappedMarker {
 	public static final field Companion Lio/github/kdiff/runtime/Diff$Companion;
 	public fun <init> (Ljava/util/List;)V
-	public final fun component1 ()Ljava/util/List;
-	public final fun copy (Ljava/util/List;)Lio/github/kdiff/runtime/Diff;
-	public static synthetic fun copy$default (Lio/github/kdiff/runtime/Diff;Ljava/util/List;ILjava/lang/Object;)Lio/github/kdiff/runtime/Diff;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getChanges ()Ljava/util/List;
 	public final fun getSize ()I
@@ -313,18 +310,18 @@ public final class io/github/kdiff/runtime/PatchFailure$Reason$UnpatchableProper
 }
 
 public final class io/github/kdiff/runtime/PatchKt {
-	public static final fun notConstructorProperty (Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;)Lio/github/kdiff/runtime/Patched;
-	public static final fun patchKeyedList (Ljava/util/List;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;)Lio/github/kdiff/runtime/Patched;
-	public static synthetic fun patchKeyedList$default (Ljava/util/List;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lio/github/kdiff/runtime/Patched;
-	public static final fun patchMap (Ljava/util/Map;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/Patched;
-	public static final fun patchNested (Ljava/lang/Object;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/Patched;
-	public static final fun patchNestedNullable (Ljava/lang/Object;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/Patched;
-	public static final fun patchNullable (Ljava/lang/Object;Ljava/util/List;Lkotlin/jvm/functions/Function2;)Lio/github/kdiff/runtime/Patched;
-	public static final fun patchPositionalList (Ljava/util/List;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/Patched;
-	public static final fun patchSet (Ljava/util/Set;Ljava/util/List;)Lio/github/kdiff/runtime/Patched;
+	public static final fun notConstructorProperty (Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;)Lio/github/kdiff/runtime/PatchResult;
+	public static final fun patchKeyedList (Ljava/util/List;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;)Lio/github/kdiff/runtime/PatchResult;
+	public static synthetic fun patchKeyedList$default (Ljava/util/List;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lio/github/kdiff/runtime/PatchResult;
+	public static final fun patchMap (Ljava/util/Map;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/PatchResult;
+	public static final fun patchNested (Ljava/lang/Object;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/PatchResult;
+	public static final fun patchNestedNullable (Ljava/lang/Object;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/PatchResult;
+	public static final fun patchNullable (Ljava/lang/Object;Ljava/util/List;Lkotlin/jvm/functions/Function2;)Lio/github/kdiff/runtime/PatchResult;
+	public static final fun patchPositionalList (Ljava/util/List;Ljava/util/List;Lio/github/kdiff/runtime/Patcher;)Lio/github/kdiff/runtime/PatchResult;
+	public static final fun patchSet (Ljava/util/Set;Ljava/util/List;)Lio/github/kdiff/runtime/PatchResult;
 	public static final fun patchSingleton (Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;)Lio/github/kdiff/runtime/PatchResult;
-	public static final fun patchValue (Ljava/lang/Object;Ljava/util/List;)Lio/github/kdiff/runtime/Patched;
-	public static final fun unpatchable (Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;)Lio/github/kdiff/runtime/Patched;
+	public static final fun patchValue (Ljava/lang/Object;Ljava/util/List;)Lio/github/kdiff/runtime/PatchResult;
+	public static final fun unpatchable (Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;)Lio/github/kdiff/runtime/PatchResult;
 }
 
 public final class io/github/kdiff/runtime/PatchResult {
@@ -340,20 +337,6 @@ public final class io/github/kdiff/runtime/PatchResult {
 	public final fun getValue ()Ljava/lang/Object;
 	public fun hashCode ()I
 	public final fun isClean ()Z
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class io/github/kdiff/runtime/Patched {
-	public fun <init> (Ljava/lang/Object;Ljava/util/List;)V
-	public synthetic fun <init> (Ljava/lang/Object;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/lang/Object;
-	public final fun component2 ()Ljava/util/List;
-	public final fun copy (Ljava/lang/Object;Ljava/util/List;)Lio/github/kdiff/runtime/Patched;
-	public static synthetic fun copy$default (Lio/github/kdiff/runtime/Patched;Ljava/lang/Object;Ljava/util/List;ILjava/lang/Object;)Lio/github/kdiff/runtime/Patched;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getFailures ()Ljava/util/List;
-	public final fun getValue ()Ljava/lang/Object;
-	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -420,6 +403,8 @@ public final class io/github/kdiff/runtime/Segment$Index : io/github/kdiff/runti
 }
 
 public final class io/github/kdiff/runtime/Segment$Key : io/github/kdiff/runtime/Segment {
+	public static final field Companion Lio/github/kdiff/runtime/Segment$Key$Companion;
+	public static final field MAP_ENTRY Ljava/lang/String;
 	public fun <init> (Ljava/lang/String;Ljava/lang/Object;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/Object;
@@ -430,6 +415,9 @@ public final class io/github/kdiff/runtime/Segment$Key : io/github/kdiff/runtime
 	public final fun getValue ()Ljava/lang/Object;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kdiff/runtime/Segment$Key$Companion {
 }
 
 public final class io/github/kdiff/runtime/TrackKt {

@@ -49,7 +49,13 @@ collection operators apply to it without the caller reaching for the underlying 
 SHALL remain reachable for a caller that wants it.
 
 A `Diff` SHALL be a value: comparing the same pair of instances twice SHALL produce equal results,
-and calling `diff` SHALL NOT modify either instance.
+and calling `diff` SHALL NOT modify either instance. Two diffs holding equal changes in the same order
+SHALL be equal.
+
+A `Diff` SHALL be constructed from its changes and from nothing else. It SHALL NOT offer a way to derive
+a modified copy of itself or to destructure it: a diff with different changes is a different diff, and
+the constructor is how one is made. Its string form SHALL be its rendering, so a diff printed in a log
+or an assertion failure reads as a diff.
 
 #### Scenario: Result exposes its changes and its emptiness
 
@@ -74,6 +80,23 @@ and calling `diff` SHALL NOT modify either instance.
 - **WHEN** a caller calls `diff(a, b)` twice with the same two instances
 - **THEN** both calls return equal results
 - **AND** `a` and `b` are unchanged
+
+#### Scenario: Two diffs over equal changes are equal
+
+- **WHEN** two diffs are constructed from equal lists of changes
+- **THEN** they are equal and have equal hash codes
+
+#### Scenario: A diff offers no copy and no destructuring
+
+- **WHEN** a caller attempts to derive a copy of a diff with different changes, or to destructure a diff
+  into its components
+- **THEN** the code does not compile
+- **AND** constructing a new diff from the changes is the way to obtain one
+
+#### Scenario: A diff's string form is its rendering
+
+- **WHEN** a diff holding a value change at `city` from `"Paris"` to `"Nice"` is converted to a string
+- **THEN** the result is the same text its rendering produces, one line naming `city` and both values
 
 ### Requirement: Annotating an unsupported declaration is a compile error
 
@@ -153,6 +176,64 @@ runtime or published dependencies.
 - **WHEN** a generated differ is compiled
 - **THEN** it references only the annotated class, the Kotlin standard library, and the result types
 
+### Requirement: A generated differ is regenerated when a declaration it read changes
+
+Deciding how to compare a property SHALL sometimes read a declaration other than the annotated class's
+own: the type of a property is what says whether that type is compared as a single value, and an author
+declares such a type in a file of their own — as an `enum class`, as an inline `value class`, or by
+declaring it a value outright.
+
+Every declaration consulted in that decision SHALL be recorded as one the generated differ was built
+from. Editing any of them SHALL cause the differ to be generated again.
+
+The observable consequence, which is the requirement: **a build that reuses previous output SHALL
+report what a build from nothing reports.** A generated differ that a build from nothing refuses SHALL
+NOT survive as output that compiles, and a comparison decision SHALL NOT outlive the declaration it was
+taken from.
+
+#### Scenario: Editing a value type regenerates the differs that compared it
+
+- **WHEN** a module declares an inline `value class` in its own file, an annotated class compares a
+  property of that type, and the module has been built once
+- **AND** that class is then redeclared as an ordinary type that kdiff cannot compare, with the
+  annotated class's own file left untouched
+- **THEN** the next build reports the same error a build from nothing reports, naming the property and
+  its type
+- **AND** no differ comparing that property as a single value survives from the previous build
+
+#### Scenario: Editing an enum regenerates the differs that compared it
+
+- **WHEN** the same is done with an `enum class` redeclared as a type kdiff cannot compare
+- **THEN** the next build reports the same error a build from nothing reports
+
+#### Scenario: Editing a type declared to compare as one value regenerates its readers
+
+- **WHEN** the same is done by removing the declaration that made a type compare as one value, so that
+  the type is no longer comparable
+- **THEN** the next build reports the same error a build from nothing reports
+
+#### Scenario: Removing an exclusion from an overridden property regenerates the subclass's differ
+
+- **WHEN** a `@Diffable` sealed parent excludes a property from comparison, a `@Diffable` subclass
+  overrides it, and the module has been built once
+- **AND** the exclusion is then removed from the parent, with the subclass's own file left untouched
+- **THEN** the next build reports the property's changes, as a build from nothing does
+
+#### Scenario: Adding a declaration to an overridden property regenerates the subclass's differ
+
+- **WHEN** neither a sealed parent's property nor the subclass override of it carries any comparison
+  declaration, and the module has been built once
+- **AND** a value declaration is then added to the parent's property, with the subclass's own file left
+  untouched
+- **THEN** the next build compares that property as one value from the subclass too, as a build from
+  nothing does
+
+#### Scenario: A build reusing previous output agrees with a build from nothing
+
+- **WHEN** any sequence of edits to the declarations a differ read is followed by a build reusing
+  previous output
+- **THEN** it succeeds exactly when a build from nothing succeeds, and reports the same diagnostics
+
 ### Requirement: A comparison reads each compared property once per instance
 
 Comparing two instances SHALL read each compared property of each instance exactly once. A differ
@@ -204,9 +285,28 @@ lazily materialised collection — and a caller cannot see a redundant read in t
 
 ### Requirement: Value properties are compared by equality
 
-A generated differ SHALL compare each property whose type is a primitive, a `String`, or an enum
-using equality, and SHALL report a difference as a value change carrying the old and the new value
-at that property's path.
+A generated differ SHALL compare each property whose type is a value type using equality, and SHALL
+report a difference as a value change carrying the old and the new value at that property's path.
+
+A value type is any of:
+
+- a primitive, an unsigned integer type, a `Char`, a `String`, or an enum;
+- an inline `value class`;
+- one of a documented set of immutable, value-equal types from the JDK and the Kotlin standard library:
+  `BigDecimal`, `BigInteger`, `UUID`, `Currency`, `Locale`, `URI`, the `java.time` value types
+  (`Instant`, `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetDateTime`, `OffsetTime`,
+  `ZonedDateTime`, `Duration`, `Period`, `Year`, `YearMonth`, `MonthDay`, `ZoneId`, `ZoneOffset`),
+  `kotlin.time.Instant` and `kotlin.uuid.Uuid`;
+- a type declared `@DiffAsValue`.
+
+The criterion for the documented set SHALL be stated where the set is listed: immutable, equal by value,
+from the JDK or the Kotlin standard library. A type that is mutable or that names something rather than
+being a value SHALL NOT be on it.
+
+A value type SHALL be a value in every position: a property of that type, a list element of that type
+and a map value of that type are all compared by equality. Equality SHALL mean the type's own `equals`;
+the library SHALL NOT substitute another comparison for any type, so a `BigDecimal` that differs only in
+scale reports a change, and a numeric comparison remains a hand-written differ's business.
 
 Equal values SHALL produce no change. Properties SHALL be compared in declaration order, and
 changes SHALL appear in that order.
@@ -233,6 +333,149 @@ changes SHALL appear in that order.
 
 - **WHEN** a property of an enum type holds `OPEN` before and `CLOSED` after
 - **THEN** the result reports one value change at that property's path from `OPEN` to `CLOSED`
+
+#### Scenario: A standard-library value type compiles and is compared by equality
+
+- **WHEN** an annotated data class declares `val total: BigDecimal`, `val placedAt: Instant` and
+  `val id: UUID`
+- **THEN** compilation succeeds without any annotation on those properties
+- **AND** a changed `placedAt` reports one value change at `placedAt` carrying both instants
+
+#### Scenario: A standard-library value type is a value inside collections
+
+- **WHEN** an annotated data class declares `val due: List<LocalDate>` and `val rates: Map<String,
+  BigDecimal>`
+- **THEN** compilation succeeds
+- **AND** a changed element reports one value change at `due[0]`, and a changed entry one value change at
+  `rates[key=eur]`
+
+#### Scenario: A big decimal differing only in scale reports a change
+
+- **WHEN** `total: BigDecimal` is `10` before and `10.00` after
+- **THEN** the result reports one value change at `total`
+
+#### Scenario: An inline value class compiles and is compared by equality
+
+- **WHEN** a module contains `@JvmInline value class Email(val value: String)` and an annotated data
+  class declares `val email: Email`
+- **THEN** compilation succeeds without any annotation on `Email` or on the property
+- **AND** two instances whose emails differ report one value change at `email` carrying both `Email`
+  values
+
+#### Scenario: A mutable JDK type is not a value
+
+- **WHEN** an annotated data class declares `val seen: java.util.Date` with no other annotation
+- **THEN** compilation fails with the error for a property kdiff cannot compare
+
+#### Scenario: A hand-written field agrees with a generated value comparison
+
+- **WHEN** the same `BigDecimal` property is compared once by a generated differ and once by a
+  hand-written differ naming it with `field`
+- **THEN** both report equal changes
+
+### Requirement: A type or a property can be declared to compare as one value
+
+`@DiffAsValue` SHALL declare that what it annotates is compared by equality, as a single value, and
+reported as one value change carrying both sides.
+
+On a class, `@DiffAsValue` SHALL make that type a value wherever a `@Diffable` class reaches it: as a
+property, as a list element, as a map value. It SHALL be honoured on a type the annotating module
+declares, exactly as `@Diffable` is.
+
+On a property, `@DiffAsValue` SHALL make that property alone compare as one value whatever its type —
+a `@Diffable` type, a collection, or anything else — reporting one value change at the property and
+nothing beneath it. It is the annotation counterpart of the hand-written builder's `field`, and the two
+SHALL report identical changes for the same property.
+
+`@DiffAsValue` SHALL NOT be accepted where it could change nothing or contradict another declaration.
+Each such use SHALL fail the compilation with an error at the annotated declaration naming it and
+stating why:
+
+- on a class that is also `@Diffable`, as a conflict between comparing as a whole and property by
+  property;
+- on a class, an enum or a property whose type is already compared as a value, as having no effect;
+- on a property that also carries `@DiffWith`, as a conflict, since a property is compared one way;
+- on a property that also carries `@DiffIgnore`, as a conflict, since an ignored property is never
+  compared;
+- on a property of a class that is not `@Diffable`, as requiring `@Diffable`, since no differ is
+  generated to honour it.
+
+#### Scenario: A type declared as a value is compared by equality as a property
+
+- **WHEN** a module contains `@DiffAsValue data class Coordinates(val lat: Double, val lon: Double)` and
+  `@Diffable data class Place(val name: String, val at: Coordinates)`
+- **THEN** compilation succeeds
+- **AND** two places whose coordinates differ in `lon` report exactly one value change at `at` carrying
+  both `Coordinates` instances
+- **AND** no change is reported at `at.lon`
+
+#### Scenario: A type declared as a value is a value inside collections
+
+- **WHEN** a `@Diffable` class declares `val route: List<Coordinates>` and `val byName: Map<String,
+  Coordinates>` with `Coordinates` declared `@DiffAsValue`
+- **THEN** compilation succeeds
+- **AND** a changed element reports one value change at `route[1]`, and a changed entry one value
+  change at `byName[key=home]`
+
+#### Scenario: A property declared as a value compares a nested type as a whole
+
+- **WHEN** an annotated data class declares `@DiffAsValue val billing: Address` and `Address` is
+  `@Diffable`
+- **THEN** two instances whose billing addresses differ in `city` report exactly one value change at
+  `billing` carrying both addresses
+- **AND** no change is reported at `billing.city`
+
+#### Scenario: A property declared as a value compares a collection as a whole
+
+- **WHEN** an annotated data class declares `@DiffAsValue val tags: List<String>`
+- **THEN** `["a", "b"]` against `["a", "c"]` reports exactly one value change at `tags` from
+  `["a", "b"]` to `["a", "c"]`
+- **AND** no change is reported at `tags[1]`
+
+#### Scenario: A property declared as a value and a hand-written field agree
+
+- **WHEN** the same model is described once with `@DiffAsValue val billing: Address` and once by hand
+  with `field(Order::billing)`
+- **THEN** both report equal changes, at equal paths, in the same order, for every pair of instances
+
+#### Scenario: A value declaration on a diffable class is rejected
+
+- **WHEN** a module contains `@Diffable @DiffAsValue data class Money(val amount: String)`
+- **THEN** compilation fails
+- **AND** the error names `Money` and states that `@DiffAsValue` conflicts with `@Diffable`
+- **AND** the error is reported at the declaration of `Money`
+
+#### Scenario: A value declaration on something already a value is rejected
+
+- **WHEN** a module contains `@DiffAsValue enum class Status { OPEN, CLOSED }`, or `@DiffAsValue
+  @JvmInline value class Email(val value: String)`, or an annotated data class declaring
+  `@DiffAsValue val total: BigDecimal`
+- **THEN** compilation fails for each
+- **AND** each error names the declaration and states that it is already compared as a value
+
+#### Scenario: A value declaration beside a hand-written differ is rejected
+
+- **WHEN** an annotated data class declares `@DiffAsValue @DiffWith(MoneyDiffer::class) val total: Money`
+- **THEN** compilation fails
+- **AND** the error names `total` and states that `@DiffAsValue` conflicts with `@DiffWith`
+
+#### Scenario: A value declaration on an ignored property is rejected
+
+- **WHEN** an annotated data class declares `@DiffAsValue @DiffIgnore val note: Address`
+- **THEN** compilation fails
+- **AND** the error names `note` and states that `@DiffAsValue` conflicts with `@DiffIgnore`
+
+#### Scenario: A value declaration on a property of an unannotated class is rejected
+
+- **WHEN** a module contains `data class Order(@DiffAsValue val billing: Address)` with no `@Diffable`
+- **THEN** compilation fails
+- **AND** the error names `billing` and states that `@DiffAsValue` requires `@Diffable` on `Order`
+
+#### Scenario: A key on a type declared as a value is rejected
+
+- **WHEN** a module contains `@DiffAsValue data class Tag(@DiffKey val id: String, val label: String)`
+- **THEN** compilation fails
+- **AND** the error names `id` and states that `@DiffKey` requires `@Diffable` on `Tag`
 
 ### Requirement: A nullable property reports a null on either side as a value change
 
@@ -866,6 +1109,103 @@ reflection library SHALL be required.
 - **AND** the same pair of instances is compared with each
 - **THEN** both report equal changes, at equal paths, in the same order
 
+### Requirement: A comparison annotation on an overridden property is honoured on the override
+
+A property declared by a sealed parent and overridden by a subclass SHALL be compared as the parent
+declared it, whichever branch of the dispatch compares it.
+
+Where the comparison of a property is configured by an annotation on the declaration — declaring it a
+single value, excluding it from comparison, or naming a differ for it — and the property overrides
+another, the annotation SHALL be read from the overridden declaration when the override carries no such
+annotation of its own. An annotation on the override SHALL take precedence over one on the declaration
+it overrides, so a subclass can still say something different from its parent.
+
+This SHALL hold for the two instances being the same subclass, which delegates to that subclass's
+differ, exactly as it already holds for the two being different subclasses, which compares the parent's
+properties directly. The two branches SHALL NOT disagree about how one property is compared.
+
+Only annotations configuring how a property is compared are inherited this way. A key declaration is
+read from a collection's element type and a tracking scope from the annotated class itself, so neither
+has an overridden declaration to consult.
+
+#### Scenario: A value declaration on a sealed parent property is honoured by a subclass
+
+- **WHEN** `@Diffable sealed interface Doc` declares `@DiffAsValue val meta: Meta` with `Meta` being
+  `@Diffable`, and `@Diffable data class Letter(override val meta: Meta, val body: String) : Doc`
+- **THEN** two `Letter` instances whose `meta` differs inside report exactly one value change at
+  `meta`, carrying both `Meta` instances
+- **AND** no change is reported at `meta.title`
+
+#### Scenario: The same subclass and a subclass swap agree about the parent's property
+
+- **WHEN** the parent declares `@DiffAsValue val meta: Meta` and one subclass overrides it
+- **THEN** two instances of that subclass report the property the same way a swap between two
+  subclasses reports it: one value change at `meta`, never a change beneath it
+
+#### Scenario: An exclusion on a sealed parent property is honoured by a subclass
+
+- **WHEN** `@Diffable sealed interface Doc` declares `@DiffIgnore val revision: String` and a
+  `@Diffable` subclass overrides it
+- **THEN** two instances of that subclass whose `revision` differs report no change at `revision`
+
+#### Scenario: A hand-written differ named on a sealed parent property is honoured by a subclass
+
+- **WHEN** `@Diffable sealed interface Doc` declares `@DiffWith(WeightDiffer::class) val weight:
+  Weight` and a `@Diffable` subclass overrides it
+- **THEN** two instances of that subclass are compared for that property by the named differ, with its
+  paths reported beneath `weight`
+
+#### Scenario: An annotation on the override wins
+
+- **WHEN** a sealed parent declares `@DiffAsValue val meta: Meta` and a subclass's override carries
+  `@DiffIgnore`
+- **THEN** the subclass reports no change at `meta`, the override's own declaration being what applies
+
+#### Scenario: A declaration inherited from another module is honoured, not reported
+
+- **WHEN** a `@Diffable` class overrides a property declared in a compiled dependency that carries a
+  value declaration, and that dependency generated nothing of its own
+- **THEN** the declaration is honoured
+- **AND** no diagnostic names the overriding property for an annotation it does not carry
+- **AND** a differ is generated for the overriding class
+
+#### Scenario: An unusable differ inherited from another module is still reported
+
+- **WHEN** a `@Diffable` class overrides a property declared in a compiled dependency whose `@DiffWith`
+  names something that is not an object implementing the comparison contract
+- **THEN** compilation fails with a diagnostic naming what is wrong
+- **AND** the property is not silently left uncompared
+
+#### Scenario: An unannotated parent property is unaffected
+
+- **WHEN** a sealed parent declares `val meta: Meta` with no comparison annotation and a `@Diffable`
+  subclass overrides it
+- **THEN** the property is compared as its type dictates, reporting changes beneath `meta` as before
+
+### Requirement: A differ or a patcher can be written as a single expression
+
+The comparison and application contracts SHALL each be a functional interface, so that an
+implementation with one comparison to make can be written as a lambda where it is used, without
+declaring an object. Such an implementation SHALL be indistinguishable from any other to code that
+consumes it.
+
+The documentation SHALL state, wherever it states it for an object implementation, that a differ
+written this way and calling another differ directly bypasses the descent bound, and SHALL point at the
+nested-comparison helper that keeps it.
+
+#### Scenario: A differ is written as a lambda
+
+- **WHEN** a caller declares a differ for `Money` as a lambda over two instances that returns a `Diff`
+- **THEN** it compiles
+- **AND** it can be passed wherever a differ for `Money` is accepted, including as the differ of a
+  nested property in a hand-written differ
+
+#### Scenario: A patcher is written as a lambda
+
+- **WHEN** a caller declares a patcher for `Money` as a lambda over an instance and a list of changes
+  that returns a result
+- **THEN** it compiles and is accepted wherever a patcher for `Money` is
+
 ### Requirement: A change identifies where it was found
 
 Every change SHALL carry a path locating it relative to the root being diffed. A path SHALL be
@@ -875,6 +1215,12 @@ keyed collection.
 A key segment SHALL retain the key itself, not a rendering of it, so that an element or entry it
 identifies can be located and reconstructed. A key that is not a string SHALL survive in the path
 as the value it is.
+
+A key segment SHALL name what the value identifies its element by: the key property for an element of
+a keyed list, and, for a map entry, a declared constant standing for "the entry's key". That constant
+SHALL be reachable by name from the key segment type, so that a hand-written differ or patcher building
+or reading a map path names it rather than repeating a literal, and so that the rendered form of a map
+path can be traced to its origin.
 
 A path SHALL render in a form a reader can follow back to the source: properties separated by dots,
 an index in square brackets, a key as the key property and its value in square brackets. Rendering
@@ -900,6 +1246,13 @@ a key SHALL use its string form, so rendered paths are unchanged by the key bein
 - **WHEN** a change is found at the entry keyed `1` of a map whose keys are integers
 - **THEN** the path's key segment holds the integer `1`, not the text `"1"`
 - **AND** the path still renders as `[key=1]`
+
+#### Scenario: A map entry's key segment carries the declared constant
+
+- **WHEN** a change is found at the entry keyed `"eur"` of an `amounts` map
+- **THEN** the path's key segment names its property with the declared map-entry constant
+- **AND** that constant is reachable from the key segment type by name
+- **AND** the path renders as `amounts[key=eur]`, exactly as before the constant was declared
 
 ### Requirement: A diff can be viewed as a tree
 
@@ -929,6 +1282,10 @@ change.
 `Diff` SHALL render to a human-readable text form in which each change occupies one line showing
 its path and what happened, and the kind of each change is distinguishable.
 
+The same text SHALL be what the diff's own string conversion produces, so that a diff reaching a log, a
+debugger or an assertion message without the caller asking for its rendering still reads as a diff.
+Rendering SHALL remain reachable by name, for a caller who wants the text on purpose.
+
 Rendering SHALL NOT alter the diff.
 
 #### Scenario: A value change renders with both values
@@ -947,26 +1304,50 @@ Rendering SHALL NOT alter the diff.
 - **WHEN** a diff reports no changes
 - **THEN** the rendered text asserts no change
 
+#### Scenario: The string conversion and the rendering agree
+
+- **WHEN** any diff is both rendered and converted to a string
+- **THEN** the two texts are identical
+
 ### Requirement: A property kdiff cannot compare is a compile error
 
 A property whose type is neither a value type, an annotated type, a supported collection, nor
 pointed at a hand-written differ SHALL fail the compilation with an error naming the property and
-its type, and pointing at the hand-written differ escape hatch.
+its type, and naming the three ways out: annotating the type `@Diffable`, marking the property
+`@DiffAsValue` to compare it by equality, or pointing the property at a hand-written differ with
+`@DiffWith`. For a collection whose element or value type cannot be compared, the error SHALL name
+the element type and the two declarations that can be placed on it, `@Diffable` or `@DiffAsValue`,
+and the hand-written differ.
 
 Such a property SHALL NOT be silently compared by equality: comparing a rich type as an opaque
-value produces a diff that is technically correct and useless.
+value produces a diff that is technically correct and useless, and the author SHALL say so with
+`@DiffAsValue` if that is what they want.
 
 #### Scenario: An unsupported property type is rejected
 
 - **WHEN** an annotated data class has a property of a third-party type with no `@DiffWith`
 - **THEN** compilation fails
-- **AND** the error names the property and its type, and mentions the escape hatch
+- **AND** the error names the property and its type, and mentions `@Diffable`, `@DiffAsValue` and
+  `@DiffWith`
 - **AND** the error is reported at the property
+
+#### Scenario: An unsupported element type is rejected
+
+- **WHEN** an annotated data class has a `List` of a third-party type with no `@DiffWith`
+- **THEN** compilation fails
+- **AND** the error names the property and the element type, and mentions `@Diffable`, `@DiffAsValue`
+  and `@DiffWith`
 
 #### Scenario: The same property with a hand-written differ compiles
 
 - **WHEN** that property is annotated with `@DiffWith` naming a differ for its type
 - **THEN** compilation succeeds
+
+#### Scenario: The same property declared as a value compiles
+
+- **WHEN** that property is annotated with `@DiffAsValue`
+- **THEN** compilation succeeds
+- **AND** the property is compared by equality
 
 ### Requirement: A collection whose elements are nullable and compared by a differ is a compile error
 

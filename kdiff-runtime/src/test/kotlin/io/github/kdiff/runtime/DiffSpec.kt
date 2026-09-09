@@ -3,6 +3,8 @@ package io.github.kdiff.runtime
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 
 class DiffSpec :
     FunSpec({
@@ -14,11 +16,32 @@ class DiffSpec :
             diff.isEmpty() shouldBe true
         }
 
-        test("two diffs built from the same changes are equal") {
-            val changes = listOf(ValueChanged(FieldPath.of("name"), "Ada", "Grace"))
+        test("two diffs built from equal changes are equal and hash alike") {
+            val left = Diff(listOf(ValueChanged(FieldPath.of("name"), "Ada", "Grace")))
+            val right = Diff(listOf(ValueChanged(FieldPath.of("name"), "Ada", "Grace")))
 
-            Diff(changes) shouldBe Diff(changes)
-            Diff(changes).hashCode() shouldBe Diff(changes).hashCode()
+            left shouldBe right
+            left.hashCode() shouldBe right.hashCode()
+        }
+
+        test("two diffs built from different changes are not equal") {
+            val left = Diff(listOf(ValueChanged(FieldPath.of("name"), "Ada", "Grace")))
+            val right = Diff(listOf(ValueChanged(FieldPath.of("name"), "Ada", "Hedy")))
+
+            left shouldNotBe right
+        }
+
+        test("a diff's string form is its rendering") {
+            val diff = Diff(listOf(ValueChanged(FieldPath.of("city"), "Paris", "Nice")))
+
+            diff.toString() shouldBe diff.render()
+            diff.toString() shouldContain "city"
+            diff.toString() shouldContain "Paris"
+            diff.toString() shouldContain "Nice"
+        }
+
+        test("an empty diff's string form is its rendering too") {
+            Diff.EMPTY.toString() shouldBe Diff.EMPTY.render()
         }
 
         test("a field path is a value, so paths with the same segments are equal") {

@@ -6,6 +6,8 @@ import io.github.kdiff.runtime.tracker
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.string.shouldContain
+import java.math.BigDecimal
+import java.time.Instant
 
 private val a1 = Address("A1", "1 Rue X", "Paris")
 private val a2 = Address("A2", "2 Rue Y", "Lyon")
@@ -25,6 +27,10 @@ private val order = Order(
     payment = Card("10", "1234"),
     total = Money("10", "EUR"),
     weight = Weight("500"),
+    discount = BigDecimal("2.50"),
+    placedAt = Instant.EPOCH,
+    sku = Sku("SKU-1"),
+    location = Coordinates(48.85, 2.35),
 )
 
 /** Two elements of `addresses` carrying the same `@DiffKey` value. */

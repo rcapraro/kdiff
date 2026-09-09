@@ -29,6 +29,35 @@ internal fun compile(vararg sources: SourceFile): JvmCompilationResult = KotlinC
     jvmTarget = "21"
 }.compile()
 
+/**
+ * Compiles [sources] with no processor, standing in for a module that uses the annotations without
+ * generating anything from them.
+ *
+ * The upstream half of a two-module model: a shared domain module depends on `kdiff-annotations` and
+ * leaves generation to whoever consumes it. Nothing rejects an annotation there, because nothing reads
+ * one — which is how a declaration carrying a comparison annotation reaches a downstream compilation
+ * as a class file, with no containing file of its own.
+ */
+internal fun compileDependency(vararg sources: SourceFile): JvmCompilationResult = KotlinCompilation().apply {
+    this.sources = sources.toList()
+    inheritClassPath = true
+    messageOutputStream = System.out
+    jvmTarget = "21"
+}.compile()
+
+/** Compiles [sources] with the processor, against [dependency]'s output rather than its source. */
+internal fun compileAgainst(dependency: JvmCompilationResult, vararg sources: SourceFile): JvmCompilationResult =
+    KotlinCompilation().apply {
+        this.sources = sources.toList()
+        classpaths = listOf(dependency.outputDirectory)
+        configureKsp {
+            symbolProcessorProviders += DiffProcessorProvider()
+        }
+        inheritClassPath = true
+        messageOutputStream = System.out
+        jvmTarget = "21"
+    }.compile()
+
 internal val JvmCompilationResult.generatedFileNames: List<String>
     get() = sourcesGeneratedBySymbolProcessor.map { it.name }.toList()
 
@@ -134,6 +163,12 @@ internal fun JvmCompilationResult.applyWithExtra(
 internal fun JvmCompilationResult.fixtureAfter(fixtureClassName: String = "demo.Fixture"): Any? {
     val fixture = loadObject(fixtureClassName)
     return fixture.javaClass.getMethod("getAfter").invoke(fixture)
+}
+
+/** The source of a round trip, so a test can assert a refused change left it alone. */
+internal fun JvmCompilationResult.fixtureBefore(fixtureClassName: String = "demo.Fixture"): Any? {
+    val fixture = loadObject(fixtureClassName)
+    return fixture.javaClass.getMethod("getBefore").invoke(fixture)
 }
 
 internal fun Diff.valueChange(path: String): ValueChanged =

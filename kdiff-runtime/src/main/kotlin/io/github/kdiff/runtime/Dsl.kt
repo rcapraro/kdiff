@@ -165,8 +165,8 @@ public class DifferBuilder<T> @PublishedApi internal constructor() {
         val comparisons = comparisons.toList()
         val subtypes = subtypes.toList()
 
-        return object : Differ<T> {
-            override fun diff(before: T, after: T): Diff = Diff(
+        return Differ { before, after ->
+            Diff(
                 buildList {
                     if (subtypes.isNotEmpty()) {
                         val shared = subtypes.firstOrNull { it.holdsBoth(before, after) }

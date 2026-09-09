@@ -7,6 +7,16 @@ internal const val DIFFABLE = "io.github.kdiff.annotations.Diffable"
 internal const val DIFF_KEY = "io.github.kdiff.annotations.DiffKey"
 internal const val DIFF_IGNORE = "io.github.kdiff.annotations.DiffIgnore"
 internal const val DIFF_WITH = "io.github.kdiff.annotations.DiffWith"
+internal const val DIFF_AS_VALUE = "io.github.kdiff.annotations.DiffAsValue"
+
+/**
+ * How a `value class` is recognised once it has been compiled: `Modifier.VALUE` is surfaced only for a
+ * declaration KSP reads from *source*, so a value class from another module or a library carries no
+ * modifier here. `@JvmInline` is mandatory on a Kotlin/JVM `value class` and has binary retention, so
+ * it survives into the class file and is the same test for both.
+ */
+internal const val JVM_INLINE = "kotlin.jvm.JvmInline"
+
 internal const val TRACKABLE = "io.github.kdiff.annotations.Trackable"
 internal const val TRACK_IGNORE = "io.github.kdiff.annotations.TrackIgnore"
 internal const val TRACK_DEPTH = "io.github.kdiff.annotations.TrackDepth"

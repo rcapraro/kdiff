@@ -8,7 +8,7 @@ both directions.
 
 <!-- from: kdiff-runtime/src/main/kotlin/io/github/kdiff/runtime/Patcher.kt -->
 ```kotlin
-public interface Patcher<T> {
+public fun interface Patcher<T> {
     public fun apply(before: T, changes: List<Change>): PatchResult<T>
 }
 ```

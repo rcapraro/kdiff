@@ -86,6 +86,13 @@ class PatchValueSpec :
         test("no changes leaves the source value") {
             patchValue("Ada", emptyList()).value shouldBe "Ada"
         }
+
+        test("a helper's result can be required outright, exactly as a whole application's can") {
+            patchValue("Ada", listOf(ValueChanged(at(), "Ada", "Grace"))).getOrThrow() shouldBe "Grace"
+
+            val unusable = listOf(ValueChanged(at(Segment.Field("street")), "X", "Y"))
+            shouldThrow<PatchFailedException> { patchValue("Ada", unusable).getOrThrow() }
+        }
     })
 
 class PatchNestedSpec :
@@ -194,10 +201,7 @@ class PatchKeyedListSpec :
         }
 
         test("a nested value no change addresses is never rebuilt, so a duplicate inside it is never reached") {
-            val neverCalled = object : Patcher<Entry> {
-                override fun apply(before: Entry, changes: List<Change>): PatchResult<Entry> =
-                    error("reconstruction should not have been attempted")
-            }
+            val neverCalled = Patcher<Entry> { _, _ -> error("reconstruction should not have been attempted") }
             val untouched = Entry("A1", "Rue 1")
 
             patchNested(untouched, emptyList(), neverCalled).value shouldBe untouched

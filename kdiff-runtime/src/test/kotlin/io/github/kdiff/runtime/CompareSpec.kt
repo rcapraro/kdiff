@@ -243,6 +243,14 @@ class CompareSpec :
                 changes.map { it.path.toString() } shouldContainExactly listOf("rates[key=eur]")
             }
 
+            test("an entry's key segment carries the declared map-entry constant") {
+                val changes = compare { compareMap("amounts", mapOf("eur" to "1.0"), mapOf("eur" to "1.1"), null) }
+
+                val segment = changes.single().path.segments.last() as Segment.Key
+                segment.property shouldBe Segment.Key.MAP_ENTRY
+                changes.single().path.toString() shouldBe "amounts[key=eur]"
+            }
+
             test("added and removed entries are reported") {
                 val changes = map(mapOf("gbp" to "1.0"), mapOf("usd" to "1.0"))
 

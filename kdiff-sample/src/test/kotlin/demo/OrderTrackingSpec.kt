@@ -10,6 +10,8 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
+import java.math.BigDecimal
+import java.time.Instant
 
 private val a1 = Address("A1", "1 Rue X", "Paris")
 private val a2 = Address("A2", "2 Rue Y", "Lyon")
@@ -30,6 +32,10 @@ private val order = Order(
     payment = Card("10", "1234"),
     total = Money("10", "EUR"),
     weight = Weight("500"),
+    discount = BigDecimal("2.50"),
+    placedAt = Instant.EPOCH,
+    sku = Sku("SKU-1"),
+    location = Coordinates(48.85, 2.35),
 )
 
 private fun paths(block: io.github.kdiff.runtime.TrackerBuilder<Order>.() -> Unit, next: Order) =
@@ -53,6 +59,10 @@ class OrderTrackingSpec :
                     TrackedField("payment", 1),
                     TrackedField("total", 1),
                     TrackedField("weight", 1),
+                    TrackedField("discount", 1),
+                    TrackedField("placedAt", 1),
+                    TrackedField("sku", 1),
+                    TrackedField("location", 1),
                 )
             }
 

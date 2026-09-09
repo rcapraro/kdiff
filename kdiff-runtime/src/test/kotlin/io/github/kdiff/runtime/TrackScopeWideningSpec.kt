@@ -49,9 +49,7 @@ private const val TRACKED = "tracked"
 private const val OTHER = "other"
 private const val EXCLUDED = "excluded"
 
-private val untracked = object : Differ<Any> {
-    override fun diff(before: Any, after: Any): Diff = Diff(emptyList())
-}
+private val untracked = Differ<Any> { _, _ -> Diff.EMPTY }
 
 private class NamedScope(val named: Set<String>, val resolved: ResolvedScope)
 

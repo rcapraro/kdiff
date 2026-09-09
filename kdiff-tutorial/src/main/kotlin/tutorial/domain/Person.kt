@@ -26,11 +26,12 @@ data class Person(
 }
 
 /**
- * Identifiers are single-property data classes rather than inline value classes: a `value class`
- * cannot be a data class, and equality is what a diff compares by.
+ * Identifiers are single-property data classes rather than inline value classes because they are
+ * rendered: a key is retained in a path as its own value and rendered through [toString], and a
+ * `value class` cannot be a data class, so `copy` would go with it. kdiff compares either the same
+ * way — a `value class` is a value without an annotation.
  *
- * [toString] is overridden because a key is retained in a path as its own value and rendered through
- * `toString`. Without it a path reads `addresses[id=AddressId(value=A1)].city`.
+ * Without the override a path reads `addresses[id=AddressId(value=A1)].city`.
  */
 data class PersonId(val value: String) {
     override fun toString(): String = value

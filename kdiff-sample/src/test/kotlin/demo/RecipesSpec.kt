@@ -19,6 +19,7 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import java.math.BigDecimal
+import java.time.Instant
 
 /**
  * The worked recipes behind `docs/how-to.md`, one test per recipe.
@@ -45,6 +46,10 @@ private val order = Order(
     payment = Card("10", "1234"),
     total = Money("10", "EUR"),
     weight = Weight("500"),
+    discount = BigDecimal("2.50"),
+    placedAt = Instant.EPOCH,
+    sku = Sku("SKU-1"),
+    location = Coordinates(48.85, 2.35),
 )
 
 /** The five causes `docs/errors.md` groups `PatchFailure.Reason` by. */
@@ -192,6 +197,21 @@ class RecipesSpec :
             // Leaving it: applied by substitution, like any type change.
             val leaving = order.copy(payment = Transfer("12", "FR76"))
             OrderDiffer.apply(unpaid, OrderDiffer.diff(unpaid, leaving).changes).value shouldBe leaving
+        }
+
+        test("a type or one property can be compared as a single value") {
+            // On the type: `Coordinates` is `@DiffAsValue`, so every property of that type is one value.
+            OrderDiffer.diff(order, order.copy(location = Coordinates(48.85, 2.40)))
+                .changes shouldContainExactly listOf(
+                ValueChanged(FieldPath.of("location"), Coordinates(48.85, 2.35), Coordinates(48.85, 2.40)),
+            )
+
+            // On the property: `Address` is `@Diffable`, and `Site.at` alone is compared as one value.
+            val site = Site("depot", a1)
+            val moved = a1.copy(city = "Nice")
+
+            SiteDiffer.diff(site, site.copy(at = moved)).changes shouldContainExactly
+                listOf(ValueChanged(FieldPath.of("at"), a1, moved))
         }
 
         test("a nullable collection appearing or disappearing is one change at the property") {

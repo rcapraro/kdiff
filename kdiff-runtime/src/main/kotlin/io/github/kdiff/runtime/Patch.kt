@@ -7,14 +7,11 @@ package io.github.kdiff.runtime
  * can gather failures and still produce an instance.
  */
 
-/** A rebuilt property value and whatever could not be applied to it. */
-public data class Patched<T>(public val value: T, public val failures: List<PatchFailure> = emptyList())
-
 internal const val NOT_CONSTRUCTOR = "only constructor properties can be reconstructed"
 
 /** Takes the new value from the last value change at this property, ignoring none of the rest. */
-public fun <T> patchValue(source: T, changes: List<Change>): Patched<T> {
-    if (changes.isEmpty()) return Patched(source)
+public fun <T> patchValue(source: T, changes: List<Change>): PatchResult<T> {
+    if (changes.isEmpty()) return PatchResult(source)
 
     val failures = mutableListOf<PatchFailure>()
     var value = source
@@ -35,7 +32,7 @@ public fun <T> patchValue(source: T, changes: List<Change>): Patched<T> {
         }
     }
 
-    return Patched(value, failures)
+    return PatchResult(value, failures)
 }
 
 /**
@@ -45,13 +42,10 @@ public fun <T> patchValue(source: T, changes: List<Change>): Patched<T> {
  * subclass swap and the parent-property changes reported alongside it — so everything is delegated
  * rather than being split here.
  */
-public fun <T> patchNested(source: T, changes: List<Change>, patcher: Patcher<T>): Patched<T> {
-    if (changes.isEmpty()) return Patched(source)
+public fun <T> patchNested(source: T, changes: List<Change>, patcher: Patcher<T>): PatchResult<T> {
+    if (changes.isEmpty()) return PatchResult(source)
 
-    return Descent.into(NESTED, source) {
-        val result = patcher.apply(source, changes)
-        Patched(result.value, result.failures)
-    }
+    return Descent.into(NESTED, source) { patcher.apply(source, changes) }
 }
 
 /**
@@ -82,8 +76,8 @@ private val NESTED = Segment.Field("<nested>")
 public fun <C : Any> patchNullable(
     source: C?,
     changes: List<Change>,
-    patch: (C, List<Change>) -> Patched<C>,
-): Patched<C?> {
+    patch: (C, List<Change>) -> PatchResult<C>,
+): PatchResult<C?> {
     val wholesale = changes.lastOrNull { it is ValueChanged && it.path.segments.isEmpty() }
     val delegated = if (wholesale == null) changes else changes.filterNot { it === wholesale }
 
@@ -100,17 +94,17 @@ public fun <C : Any> patchNullable(
         // everything else addressed to it could not be used. Reported rather than dropped, and with
         // the reason `patchValue` gives its own leftovers, since this is that same situation.
         @Suppress("UNCHECKED_CAST")
-        return Patched(
+        return PatchResult(
             wholesale.after as C?,
             delegated.map { PatchFailure(it, PatchFailure.Reason.NotApplicableToValue) },
         )
     }
 
     if (rebuilt == null) {
-        return Patched(null, changes.map { PatchFailure(it, PatchFailure.Reason.NothingBeneathNull) })
+        return PatchResult(null, changes.map { PatchFailure(it, PatchFailure.Reason.NothingBeneathNull) })
     }
 
-    return Patched(rebuilt.value, rebuilt.failures)
+    return PatchResult(rebuilt.value, rebuilt.failures)
 }
 
 /**
@@ -120,16 +114,16 @@ public fun <C : Any> patchNullable(
  * and anything deeper is delegated only when there is an instance to delegate to. [patchNested]
  * carries the descent step, as it does for a non-null nested property.
  */
-public fun <T : Any> patchNestedNullable(source: T?, changes: List<Change>, patcher: Patcher<T>): Patched<T?> =
+public fun <T : Any> patchNestedNullable(source: T?, changes: List<Change>, patcher: Patcher<T>): PatchResult<T?> =
     patchNullable(source, changes) { value, nested -> patchNested(value, nested, patcher) }
 
 /** Reports every change beneath a property whose differ cannot patch (design D7). */
-public fun <T> unpatchable(source: T, changes: List<Change>, property: String): Patched<T> =
-    Patched(source, changes.map { PatchFailure(it, PatchFailure.Reason.UnpatchableProperty(property)) })
+public fun <T> unpatchable(source: T, changes: List<Change>, property: String): PatchResult<T> =
+    PatchResult(source, changes.map { PatchFailure(it, PatchFailure.Reason.UnpatchableProperty(property)) })
 
 /** Reports every change targeting a property that is not a constructor parameter. */
-public fun <T> notConstructorProperty(source: T, changes: List<Change>, property: String): Patched<T> =
-    Patched(source, changes.map { PatchFailure(it, PatchFailure.Reason.NotConstructorProperty(property)) })
+public fun <T> notConstructorProperty(source: T, changes: List<Change>, property: String): PatchResult<T> =
+    PatchResult(source, changes.map { PatchFailure(it, PatchFailure.Reason.NotConstructorProperty(property)) })
 
 /**
  * Applies to an `object` subclass of a sealed type by returning it, reporting every change as
@@ -139,9 +133,6 @@ public fun <T> notConstructorProperty(source: T, changes: List<Change>, property
  * change reaching it therefore did not come from comparing it, which is what
  * [PatchFailure.Reason.UnknownProperty] says. A subclass swap never arrives here: it is resolved at the
  * root, before dispatch, and carries the target instance.
- *
- * Returns a [PatchResult] rather than a [Patched] because it is a whole `apply`, not one rebuilt
- * property — it stands in for the branch a data class subclass fills with a call to its own patcher.
  */
 public fun <T> patchSingleton(before: T, changes: List<Change>, type: String): PatchResult<T> =
     PatchResult(before, changes.map { PatchFailure(it, PatchFailure.Reason.UnknownProperty(type)) })
@@ -170,7 +161,7 @@ public fun <T> patchKeyedList(
     name: String? = null,
     keyProperty: String? = null,
     keyOf: (T) -> Any?,
-): Patched<List<T>> {
+): PatchResult<List<T>> {
     // Insertion-ordered, so this map is the element order as well as the lookup, and a repeated key is
     // rejected by the build itself. The empty-changes exit sits after it rather than before: carrying
     // an unaddressed property through skips the rebuild, never a precondition its shape requires.
@@ -184,7 +175,7 @@ public fun <T> patchKeyedList(
         if (byKey.size != position + 1) duplicateKey(name, keyProperty, key)
     }
 
-    if (changes.isEmpty()) return Patched(source)
+    if (changes.isEmpty()) return PatchResult(source)
 
     val failures = mutableListOf<PatchFailure>()
     val moves = mutableMapOf<Any?, Int>()
@@ -239,12 +230,16 @@ public fun <T> patchKeyedList(
     }
 
     @Suppress("UNCHECKED_CAST")
-    return Patched(target.filterNotNull().map { byKey.getValue(it) }, failures)
+    return PatchResult(target.filterNotNull().map { byKey.getValue(it) }, failures)
 }
 
 /** Rebuilds a positional list: no keys, so no moves and no identity beyond the index. */
-public fun <T> patchPositionalList(source: List<T>, changes: List<Change>, patcher: Patcher<T>?): Patched<List<T>> {
-    if (changes.isEmpty()) return Patched(source)
+public fun <T> patchPositionalList(
+    source: List<T>,
+    changes: List<Change>,
+    patcher: Patcher<T>?,
+): PatchResult<List<T>> {
+    if (changes.isEmpty()) return PatchResult(source)
 
     val failures = mutableListOf<PatchFailure>()
     val elements = source.toMutableList()
@@ -295,12 +290,12 @@ public fun <T> patchPositionalList(source: List<T>, changes: List<Change>, patch
     val kept = elements.filterIndexed { index, _ -> index !in removed }.toMutableList()
     added.forEach { (index, value) -> kept.add(minOf(index, kept.size), value) }
 
-    return Patched(kept, failures)
+    return PatchResult(kept, failures)
 }
 
 /** Rebuilds a set by membership: drop removals, add additions, never reorder. */
-public fun <T> patchSet(source: Set<T>, changes: List<Change>): Patched<Set<T>> {
-    if (changes.isEmpty()) return Patched(source)
+public fun <T> patchSet(source: Set<T>, changes: List<Change>): PatchResult<Set<T>> {
+    if (changes.isEmpty()) return PatchResult(source)
 
     val failures = mutableListOf<PatchFailure>()
     val elements = source.toMutableSet()
@@ -318,12 +313,12 @@ public fun <T> patchSet(source: Set<T>, changes: List<Change>): Patched<Set<T>> 
         }
     }
 
-    return Patched(elements, failures)
+    return PatchResult(elements, failures)
 }
 
 /** Rebuilds a map by entry key, taking keys from the path segment rather than its rendering. */
-public fun <K, V> patchMap(source: Map<K, V>, changes: List<Change>, patcher: Patcher<V>?): Patched<Map<K, V>> {
-    if (changes.isEmpty()) return Patched(source)
+public fun <K, V> patchMap(source: Map<K, V>, changes: List<Change>, patcher: Patcher<V>?): PatchResult<Map<K, V>> {
+    if (changes.isEmpty()) return PatchResult(source)
 
     val failures = mutableListOf<PatchFailure>()
     val entries = source.toMutableMap()
@@ -372,5 +367,5 @@ public fun <K, V> patchMap(source: Map<K, V>, changes: List<Change>, patcher: Pa
         failures += result.failures
     }
 
-    return Patched(entries, failures)
+    return PatchResult(entries, failures)
 }

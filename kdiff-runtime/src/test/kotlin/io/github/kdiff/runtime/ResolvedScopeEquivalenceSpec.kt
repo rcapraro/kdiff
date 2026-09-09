@@ -43,9 +43,7 @@ class ResolvedScopeEquivalenceSpec :
 /** A scope's three inputs, carried together so a disagreement can name the case that produced it. */
 private data class Case(val fields: List<TrackedField>?, val depth: Int?, val excluded: Set<String>)
 
-private val untracked = object : Differ<Any> {
-    override fun diff(before: Any, after: Any): Diff = Diff(emptyList())
-}
+private val untracked = Differ<Any> { _, _ -> Diff.EMPTY }
 
 private fun live(case: Case): ResolvedScope =
     TrackScope<Any>(case.fields, case.depth, case.excluded).resolveAgainst(untracked)

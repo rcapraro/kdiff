@@ -79,9 +79,15 @@ fine, because equality is defined for null, and so is any `Set`. →
 
 ### Can I compare every `BigDecimal` in my model by `compareTo`?
 
-Not in one declaration. Custom comparison is per property, not per type: `@DiffWith` points one
-property at one differ, and there is no global registration. →
-[Compare a value your own way](how-to.md#compare-a-value-your-own-way)
+By `equals`, yes, and without doing anything: `BigDecimal` is a value kdiff compares by equality
+wherever it appears. Note that its `equals` is scale-sensitive, so `10` and `10.00` report a change.
+
+By `compareTo`, no — not in one declaration. A hand-written comparison is per property: `@DiffWith`
+points one property at one differ, and there is no global registration, because a differ is code and
+code cannot be attached to a type you do not declare. What *can* be declared on a type is that it is a
+value, with `@DiffAsValue`. →
+[What counts as a value](annotations.md#what-counts-as-a-value),
+[compare a value your own way](how-to.md#compare-a-value-your-own-way)
 
 ### Can I add a sixth `Change` variant?
 

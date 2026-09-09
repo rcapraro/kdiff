@@ -17,7 +17,7 @@ package io.github.kdiff.runtime
  * with [CyclicStructureException]. Neither is a change failing — it is the
  * source being unrebuildable, so there is no partial value to hand back.
  */
-public interface Patcher<T> {
+public fun interface Patcher<T> {
     public fun apply(before: T, changes: List<Change>): PatchResult<T>
 }
 

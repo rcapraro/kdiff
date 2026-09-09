@@ -34,7 +34,7 @@ internal fun emit(property: KSPropertyDeclaration, comparison: Comparison): Code
     val nullable = property.type.resolve().isMarkedNullable
 
     return when (comparison) {
-        Comparison.ByValue ->
+        is Comparison.ByValue ->
             CodeBlock.of("%M(%S, before.%N, after.%N)\n", COMPARE_VALUE, name, name, name)
 
         is Comparison.Nested -> if (nullable) {
@@ -167,7 +167,7 @@ private fun patchCall(
     name: String,
     nullable: Boolean,
 ): CodeBlock = when (comparison) {
-    Comparison.ByValue -> CodeBlock.of("%M(%L, %L)", PATCH_VALUE, source, changes)
+    is Comparison.ByValue -> CodeBlock.of("%M(%L, %L)", PATCH_VALUE, source, changes)
 
     is Comparison.Nested -> when {
         !comparison.canPatch -> CodeBlock.of("%M(%L, %L, %S)", UNPATCHABLE, source, changes, name)

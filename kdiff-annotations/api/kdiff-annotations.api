@@ -1,3 +1,6 @@
+public abstract interface annotation class io/github/kdiff/annotations/DiffAsValue : java/lang/annotation/Annotation {
+}
+
 public abstract interface annotation class io/github/kdiff/annotations/DiffIgnore : java/lang/annotation/Annotation {
 }
 

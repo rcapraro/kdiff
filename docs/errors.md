@@ -9,8 +9,8 @@ about it:
 ```
    +---------------------------------------------------------------------+
    | 1  COMPILE TIME        the build fails, KSP names a declaration     |
-   |                        eighteen diagnostics -- your model or your   |
-   |                        annotations. Nothing runs until you fix it.  |
+   |                        twenty-three diagnostics -- your model or    |
+   |                        your annotations. Nothing runs until fixed.  |
    +---------------------------------------------------------------------+
    | 2  CONSTRUCTION        building a differ, scope or routing throws   |
    |                        six messages, all IllegalArgumentException   |
@@ -62,17 +62,21 @@ subclasses it names. See [sealed types](diffing.md#sealed-types).
 
 ### A property kdiff cannot compare
 
-> `kdiff cannot compare <prop> of type <T>; annotate its type with @Diffable or point the property at a hand-written differ with @DiffWith`
+> `kdiff cannot compare <prop> of type <T>; annotate its type with @Diffable, mark the property @DiffAsValue to compare it by equality, or point the property at a hand-written differ with @DiffWith`
 
-> `kdiff cannot compare elements of <prop> of type <T>; annotate that type with @Diffable or point the property at a hand-written differ with @DiffWith`
+> `kdiff cannot compare elements of <prop> of type <T>; annotate that type with @Diffable or @DiffAsValue, or point the property at a hand-written differ with @DiffWith`
 
 The first is the property itself; the second is the element type of a collection or the value type of
-a map. kdiff compares primitives, `String`, enums, `@Diffable` types, and collections, sets and maps
-of those. Anything else needs one of the two routes the message names — and comparing a rich type as
-an opaque value is deliberately *not* offered, because it produces a diff that is technically correct
-and useless.
+a map. kdiff compares [values](annotations.md#what-counts-as-a-value), `@Diffable` types, and
+collections, sets and maps of those. Anything else needs one of the routes the message names.
 
-Both are the escape hatch's entry point: see [hand-written differs](hand-written.md).
+Comparing a rich type as an opaque value is offered but never assumed: it produces one change carrying
+both instances and nothing beneath them, which is right for a `Coordinates` and useless for a
+five-field aggregate — so [`@DiffAsValue`](annotations.md#diffasvalue) makes you say so. The element
+form names only the two type-level declarations, because `@DiffAsValue` on a collection property
+compares the whole collection rather than its elements.
+
+The last route is the escape hatch's entry point: see [hand-written differs](hand-written.md).
 
 ### A collection whose elements are nullable and reached through a differ
 
@@ -117,14 +121,18 @@ elements are identified by a composite, make that composite a property.
 
 ### Comparison annotations that could do nothing
 
-These two exist for the reason the tracking ones below do: the alternative is an annotation that
+These exist for the reason the tracking ones below do: the alternative is an annotation that
 silently does nothing while its author believes comparison is configured.
 
-> `@<DiffKey|DiffIgnore|DiffWith> on <prop> requires @Diffable on <Type>; without a generated differ it has no effect`
+> `@<DiffKey|DiffIgnore|DiffWith|DiffAsValue> on <prop> requires @Diffable on <Type>; without a generated differ it has no effect`
 
-The three comparison annotations are read only off a `@Diffable` class. On any other class nothing
-reads them, so the property is not keyed, not ignored and not pointed anywhere — it is simply not
-compared, because nothing about that class is. Add `@Diffable` to the class, or remove the annotation.
+The four comparison annotations are read only off a `@Diffable` class. On any other class nothing
+reads them, so the property is not keyed, not ignored, not pointed anywhere and not a value — it is
+simply not compared, because nothing about that class is. Add `@Diffable` to the class, or remove the
+annotation.
+
+A `@DiffKey` inside a type declared [`@DiffAsValue`](annotations.md#diffasvalue) meets this same rule:
+that type is compared as one value, so no differ is generated to read a key off it.
 
 > `@DiffWith on <prop> conflicts with @DiffIgnore; an ignored property is never compared`
 
@@ -135,6 +143,37 @@ one.
 element, while ignoring the same property excludes it from that element's *own* comparison — which is
 what you want, since two elements matched by key are equal in it by construction. The
 [tutorial](tutorial.md) does exactly this.
+
+### `@DiffAsValue` that changes nothing or contradicts something
+
+The annotation says "compare this as one value". Where that is already true, or where another
+declaration says something else about the same property, it is rejected — so reading it is never
+misleading about what removing it would do.
+
+> `@DiffAsValue on <Type> conflicts with @Diffable; one compares the type as a single value and the other property by property`
+
+The two are opposite instructions about the same type. Keep `@Diffable` and put `@DiffAsValue` on the
+*properties* you want compared whole, or keep `@DiffAsValue` and drop `@Diffable`.
+
+> `@DiffAsValue on <Type> has no effect; <Type> is already compared as a value`
+
+An enum or a `value class`. Both are values with no annotation. Delete it.
+
+> `@DiffAsValue on <prop> has no effect; <T> is already compared as a value`
+
+The property's type is a value already — a primitive, a `String`, an enum, a `value class`, one of
+[the standard-library value types](annotations.md#what-counts-as-a-value), or a type declared
+`@DiffAsValue` itself. Delete it.
+
+> `@DiffAsValue on <prop> conflicts with @DiffWith; a property is compared one way`
+
+One says "by equality", the other names a differ. Pick one: `@DiffWith` if the comparison needs code,
+`@DiffAsValue` if equality is the whole of it.
+
+> `@DiffAsValue on <prop> conflicts with @DiffIgnore; an ignored property is never compared`
+
+`@DiffIgnore` excludes the property from comparison, so how it would be compared cannot matter. Pick
+one.
 
 ### Tracking annotations that could do nothing
 
@@ -157,6 +196,10 @@ out of. Add `@Trackable` to the class — or drop the property annotation and
 
 `@DiffIgnore` already excludes the property from comparison, so no change about it ever exists. Remove
 the tracking annotation, or remove `@DiffIgnore` if you did mean to compare it.
+
+The `@DiffIgnore` may be on a property this one **overrides** rather than on the property named — a
+sealed parent's exclusion applies to the subclass overriding it, so it silences the tracking annotation
+just as surely. Look at the declaration the property overrides when the named one carries none.
 
 > `@TrackIgnore and @TrackDepth conflict on <prop>; one excludes the property from the scope and the other configures it within it`
 
@@ -363,8 +406,9 @@ reports the cycle and stops. A self-reference through a nullable property is not
 happily — `Node(name, next: Node?)` reports at `next.next.name`.
 
 One caveat: the bound lives in kdiff's own helpers. A generated differ always goes through them and a
-`differ { }` one does too, but a hand-written `object : Differ<T>` that calls another differ's `diff`
-directly bypasses the bound and can still overflow. Delegate through `compareNested` instead.
+`differ { }` one does too, but a hand-written `object : Differ<T>` — or a `Differ<T> { before, after
+-> … }` lambda, which is the same shape written shorter — that calls another differ's `diff` directly
+bypasses the bound and can still overflow. Delegate through `compareNested` instead.
 
 ### `PatchFailedException`
 

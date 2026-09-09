@@ -12,12 +12,17 @@ public sealed interface Segment {
 
     /**
      * Navigation to the element or entry identified by [value], where [property] names what the
-     * value identifies it by — a key property for a list, or `key` for a map entry.
+     * value identifies it by — a key property for a list, or [MAP_ENTRY] for a map entry.
      *
      * The key is retained as itself rather than as text: an entry added to a `Map<Int, V>` can only
      * be reconstructed from an `Int`, and a rendered `"1"` cannot be turned back into one.
      */
-    public data class Key(public val property: String, public val value: Any?) : Segment
+    public data class Key(public val property: String, public val value: Any?) : Segment {
+        public companion object {
+            /** The [property] a map entry's segment carries: an entry is identified by its key, not by a property. */
+            public const val MAP_ENTRY: String = "key"
+        }
+    }
 }
 
 /**

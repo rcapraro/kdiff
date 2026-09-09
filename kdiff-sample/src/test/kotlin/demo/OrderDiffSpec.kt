@@ -4,12 +4,16 @@ import io.github.kdiff.runtime.Added
 import io.github.kdiff.runtime.Moved
 import io.github.kdiff.runtime.Removed
 import io.github.kdiff.runtime.TypeChanged
+import io.github.kdiff.runtime.ValueChanged
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
+import java.math.BigDecimal
+import java.time.Instant
 
 private val a1 = Address("A1", "1 Rue X", "Paris")
 private val a2 = Address("A2", "2 Rue Y", "Lyon")
@@ -29,6 +33,10 @@ private val order = Order(
     payment = Card("10", "1234"),
     total = Money("10", "EUR"),
     weight = Weight("500"),
+    discount = BigDecimal("2.50"),
+    placedAt = Instant.EPOCH,
+    sku = Sku("SKU-1"),
+    location = Coordinates(48.85, 2.35),
 )
 
 private fun diff(after: Order) = OrderDiffer.diff(order, after)
@@ -154,6 +162,32 @@ class OrderDiffSpec :
                 it.afterType shouldBe "Unpaid"
             }
             changes.map { it.path.toString() } shouldContain "payment.amount"
+        }
+
+        test("a standard-library value type is compared by equality with no annotation") {
+            diff(order.copy(placedAt = Instant.ofEpochSecond(90)))
+                .changes.map { it.path.toString() } shouldContainExactly listOf("placedAt")
+        }
+
+        // kdiff compares by equality on purpose, and `BigDecimal`'s equality is scale-sensitive; a
+        // numeric comparison is a `@DiffWith` differ's business.
+        test("a big decimal differing only in scale reports a change") {
+            diff(order.copy(discount = BigDecimal("2.500")))
+                .changes.map { it.path.toString() } shouldContainExactly listOf("discount")
+        }
+
+        test("an inline value class is compared by equality with no annotation") {
+            diff(order.copy(sku = Sku("SKU-2")))
+                .changes.map { it.path.toString() } shouldContainExactly listOf("sku")
+        }
+
+        test("a type declared @DiffAsValue reports one change at the property and nothing beneath it") {
+            val changes = diff(order.copy(location = Coordinates(48.85, 2.40))).changes
+
+            changes.map { it.path.toString() } shouldContainExactly listOf("location")
+            val change = changes.single().shouldBeInstanceOf<ValueChanged>()
+            change.before shouldBe Coordinates(48.85, 2.35)
+            change.after shouldBe Coordinates(48.85, 2.40)
         }
 
         test("a hand-written differ compares a type that cannot be annotated") {

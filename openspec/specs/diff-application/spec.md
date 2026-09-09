@@ -346,6 +346,59 @@ as a value already receives, and it follows from changes never being dropped in 
 - **WHEN** a diff addresses none of a nullable `Set` property's changes, and the source holds a set
 - **THEN** applying produces an instance holding the source's own set instance
 
+### Requirement: A property compared as a value is applied as a value
+
+Applying a value change at a property compared as a value — a standard-library value type, an inline
+value class, a type declared `@DiffAsValue`, a property declared `@DiffAsValue`, or a property that
+inherits that declaration from a property it overrides — SHALL set the property to the change's new
+value, whatever that value's type. A `@DiffAsValue` property whose type is `@Diffable` or a collection
+SHALL be set wholesale, since the change carries the whole new value and nothing was reported beneath
+it.
+
+For any two instances of a type holding such properties, applying the diff between them to the first
+SHALL produce an instance equal to the second and SHALL report no failures. This SHALL hold for a
+property whose value declaration was inherited exactly as for one carrying it directly: comparison and
+application read the same declaration, so they cannot disagree about whether a property is a value.
+
+A change reported beneath a property compared as a value SHALL be reported as a failure whose reason
+states that it is not applicable to a value property, as for any other value.
+
+#### Scenario: Round-trip over standard-library value types
+
+- **WHEN** two instances differ in a `BigDecimal`, an `Instant` and a `UUID` property
+- **THEN** applying their diff to the first produces an instance equal to the second
+- **AND** no failures are reported
+
+#### Scenario: Round-trip over an inline value class
+
+- **WHEN** two instances differ in an `Email` property, `Email` being an inline value class
+- **THEN** applying their diff reproduces the target
+
+#### Scenario: Round-trip over a property declared as a value
+
+- **WHEN** two instances differ inside `@DiffAsValue val billing: Address`, `Address` being `@Diffable`
+- **THEN** their diff holds one value change at `billing`
+- **AND** applying it produces an instance whose `billing` is the target's, with no failures
+
+#### Scenario: Round-trip over a collection declared as a value
+
+- **WHEN** two instances differ in `@DiffAsValue val tags: List<String>`
+- **THEN** applying their diff produces an instance whose `tags` is the target's list, with no failures
+
+#### Scenario: Round-trip over a property inheriting its value declaration
+
+- **WHEN** a `@Diffable` sealed parent declares `@DiffAsValue val meta: Meta`, a `@Diffable` subclass
+  overrides it, and two instances of that subclass differ inside `meta`
+- **THEN** their diff holds one value change at `meta`
+- **AND** applying it produces an instance whose `meta` is the target's, with no failures
+
+#### Scenario: A change beneath a value-declared property is reported
+
+- **WHEN** a value change at `billing.city` is applied to a type declaring `@DiffAsValue val billing:
+  Address`
+- **THEN** the result reports that change as a failure stating it is not applicable to a value property
+- **AND** the result's `billing` is the source's
+
 ### Requirement: A sealed singleton is applied by returning it
 
 When the instance being patched is an `object` subclass of a sealed type and no type change is
@@ -544,3 +597,34 @@ bound refuses.
 
 - **WHEN** any source that stays within the descent bound is patched before and after this change
 - **THEN** the same instance is produced and the same failures are reported
+
+### Requirement: The helpers a hand-written patcher composes return the patcher's own result type
+
+Every helper the library offers for rebuilding one property — a value, a nested value whether nullable
+or not, a keyed list, a positional list, a set, a map, and the two that report a property as
+unpatchable or as not reconstructible — SHALL return the same result type that applying to a whole
+instance returns: the rebuilt value together with the changes that could not be applied to it.
+
+There SHALL be one such type. A hand-written patcher composing the helpers SHALL read their results
+with the same two members it returns from its own `apply`, and SHALL need no conversion between a
+helper's result and its own.
+
+#### Scenario: A helper's result is the patcher's result type
+
+- **WHEN** a hand-written patcher rebuilds a `Money` from the value helper for `amount` and for
+  `currency`
+- **THEN** each helper's result is of the type the patcher's own `apply` returns
+- **AND** the patcher constructs its result from their values and failures without converting either
+
+#### Scenario: A helper's result can be required outright
+
+- **WHEN** a caller applies the value helper to a property and requires its value, as it would a whole
+  application's
+- **THEN** the value is returned when every change applied, and the declared patch-failed exception is
+  raised otherwise
+
+#### Scenario: Generated code is unchanged by the single type
+
+- **WHEN** a `@Diffable` class is regenerated
+- **THEN** the generated file is textually identical to the one produced before the helpers changed
+  their return type

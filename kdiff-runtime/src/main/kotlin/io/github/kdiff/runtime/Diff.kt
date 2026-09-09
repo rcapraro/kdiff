@@ -87,8 +87,12 @@ internal fun Change.withPath(path: FieldPath): Change = when (this) {
  * compared.
  *
  * A `Diff` is a value — two results built from the same changes are equal.
+ *
+ * Not a data class: it is a container with behaviour rather than a record of its properties. `copy` is
+ * the constructor spelled longer, destructuring one change list is no read anybody wants, and both
+ * would fix the shape of `Diff` forever.
  */
-public data class Diff(public val changes: List<Change>) : Iterable<Change> {
+public class Diff(public val changes: List<Change>) : Iterable<Change> {
 
     /**
      * The changes this diff holds, so the standard library's operators apply to a `Diff` directly.
@@ -127,6 +131,19 @@ public data class Diff(public val changes: List<Change>) : Iterable<Change> {
 
     /** The same changes as human-readable text, one line each. */
     public fun render(): String = renderChanges(changes)
+
+    override fun equals(other: Any?): Boolean = this === other || (other is Diff && changes == other.changes)
+
+    override fun hashCode(): Int = changes.hashCode()
+
+    /**
+     * The diff's [render]ing, so a diff reaching a log line, a debugger or an assertion message reads
+     * as a diff rather than as a nested constructor call.
+     *
+     * Several lines for several changes, which is unusual for a `toString` and deliberate: a
+     * single-line form would have to invent a third rendering of the same changes.
+     */
+    override fun toString(): String = renderChanges(changes)
 
     public companion object {
         /** The diff that found nothing, for a caller with nothing to report. */

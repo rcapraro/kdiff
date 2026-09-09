@@ -117,6 +117,42 @@ class DslSpec :
 
                 diff.changes.map { it.path.toString() } shouldBe listOf("total.amount")
             }
+
+            test("a differ written as a lambda nests inside a hand-written differ") {
+                data class Invoice(val id: String, val total: Money)
+
+                val amountOnly = Differ<Money> { before, after ->
+                    Diff(buildList { compareValue("amount", before.amount, after.amount) })
+                }
+
+                val invoiceDiffer = differ<Invoice> { nested(Invoice::total, amountOnly) }
+
+                val diff = invoiceDiffer.diff(
+                    Invoice("1", Money("10", "EUR")),
+                    Invoice("1", Money("12", "USD")),
+                )
+
+                diff.changes.map { it.path.toString() } shouldBe listOf("total.amount")
+            }
+
+            test("a patcher written as a lambda is accepted wherever a patcher is") {
+                val replaceAmount = Patcher<Money> { before, changes ->
+                    val grouped = groupByProperty(changes, setOf("amount"))
+                    val amount = patchValue(before.amount, grouped.forProperty("amount"))
+                    PatchResult(
+                        before.copy(amount = amount.value),
+                        grouped.unmatchedFailures("Money") + amount.failures,
+                    )
+                }
+
+                val patched = patchNested(
+                    Money("10", "EUR"),
+                    listOf(ValueChanged(FieldPath.of("amount"), "10", "12")),
+                    replaceAmount,
+                )
+
+                patched.value shouldBe Money("12", "EUR")
+            }
         }
 
         context("keyed lists") {

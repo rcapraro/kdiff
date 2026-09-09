@@ -36,7 +36,7 @@ One call per comparison shape, and between them they cover everything `@Diffable
 
 | Call | Compares | Annotated equivalent |
 |---|---|---|
-| `field(p)` | by value | a scalar or enum property |
+| `field(p)` | by value | a value property, and the counterpart of `@DiffAsValue` |
 | `nested(p, differ)` | by delegating, nullable or not | a `@Diffable` property type |
 | `list(p, differ?)` | by position, after excluding an agreeing tail; never a move | a `List` whose element declares no key |
 | `keyedList(p, key, differ)` | by element identity; a reorder is a move | a `List` whose element declares `@DiffKey` |
@@ -179,13 +179,26 @@ That is the whole pattern, and it is the same shape the processor generates:
    constructor call: reconstruction needs the final value of every property at once, and a property
    with several changes beneath it is rebuilt once rather than once per change.
 2. One `patch*` helper per property — `patchValue`, `patchNested`, `patchNestedNullable`,
-   `patchKeyedList`, `patchPositionalList`, `patchSet`, `patchMap`. Each returns the new value plus
-   whatever it could not use.
+   `patchKeyedList`, `patchPositionalList`, `patchSet`, `patchMap`. Each returns a `PatchResult` — the
+   same type your own `apply` returns — so its `value` and `failures` feed straight into yours with no
+   conversion in between.
 3. Construct, and gather the failures — including `unmatchedFailures`, for changes that named no
    property you handle.
 
 `MoneyDiffer` round-trips like a generated one; `WeightDiffer` is deliberately left compare-only so
 the unpatchable path has something exercising it.
+
+`Patcher` is a functional interface, so a patcher with one property to rebuild needs no `object` at
+all:
+
+<!-- illustrative -->
+```kotlin
+val PostalCodePatcher = Patcher<PostalCode> { before, changes ->
+    val grouped = groupByProperty(changes, setOf("value"))
+    val value = patchValue(before.value, grouped.forProperty("value"))
+    PatchResult(PostalCode(value.value), grouped.unmatchedFailures("PostalCode") + value.failures)
+}
+```
 
 ## `trackScope { }`
 
@@ -264,6 +277,29 @@ Every builder call is a call to a runtime compare helper — `compareValue`, `co
 those are the same helpers the generated code calls. For a comparison the builder cannot express, use
 them directly in a plain `Differ<T>` implementation: the result is still indistinguishable from a
 generated differ, because it is made of the same parts.
+
+`Differ` is a functional interface, so that implementation can be a lambda where it is used:
+
+<!-- illustrative -->
+```kotlin
+val AmountOnly = Differ<Money> { before, after ->
+    Diff(buildList { compareValue("amount", before.amount, after.amount) })
+}
+```
+
+One caveat, and it is the same one an `object : Differ<T>` carries: the descent bound lives in the
+compare helpers. A differ that calls another differ's `diff` directly — an `object` or a lambda alike
+— bypasses the bound and can still overflow on a cyclic graph. Delegate through `compareNested`
+instead, and the bound applies as it does everywhere else.
+
+Building a path by hand, the segment naming a map entry's key is `Segment.Key.MAP_ENTRY` rather than a
+`"key"` literal, so a rendered `amounts[key=eur]` traces back to where `key` comes from:
+
+<!-- illustrative -->
+```kotlin
+FieldPath(listOf(Segment.Field("amounts"), Segment.Key(Segment.Key.MAP_ENTRY, "eur")))
+// amounts[key=eur]
+```
 
 ## Where to go next
 

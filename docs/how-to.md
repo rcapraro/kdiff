@@ -14,6 +14,7 @@ Every Kotlin block here is lifted from a passing test, so a recipe cannot fall b
 | rebuild an instance from a diff | [apply a diff back](#apply-a-diff-back) |
 | fail unless every change applied | [require the whole patch](#require-the-whole-patch) |
 | deal with changes that did not apply | [handle failures by cause](#handle-failures-by-cause) |
+| compare a type as one value, not field by field | [compare a type as a single value](#compare-a-type-as-a-single-value) |
 | compare a type I do not own | [compare a type you cannot annotate](#compare-a-type-you-cannot-annotate) |
 | make such a property patchable too | [make a `@DiffWith` property patchable](#make-a-diffwith-property-patchable) |
 | compare a value by something other than `equals` | [compare a value your own way](#compare-a-value-your-own-way) |
@@ -138,6 +139,39 @@ The `cause()` this calls is an exhaustive `when` over the closed vocabulary — 
 Two of the five causes are problems in your model; three mean a diff met a source it did not come
 from. → [Errors](errors.md#3-changes-that-did-not-apply)
 
+## Compare a type as a single value
+
+Some types only mean anything whole — a coordinate pair, an amount, an identifier. Declare the type
+`@DiffAsValue` and every property of that type is compared by equality, reported as one change
+carrying both instances, wherever the type appears:
+
+<!-- from: kdiff-sample/src/main/kotlin/demo/Model.kt -->
+```kotlin
+@DiffAsValue
+data class Coordinates(val lat: Double, val lon: Double)
+```
+
+For one property rather than a whole type, put the annotation on the property instead. It wins over
+the type's own classification, so a `@Diffable` type — or a collection — reports one change at that
+property and nothing beneath it:
+
+<!-- from: kdiff-sample/src/main/kotlin/demo/Model.kt -->
+```kotlin
+@Diffable
+data class Site(val name: String, @DiffAsValue val at: Address)
+```
+
+<!-- from: kdiff-sample/src/test/kotlin/demo/RecipesSpec.kt -->
+```kotlin
+            SiteDiffer.diff(site, site.copy(at = moved)).changes shouldContainExactly
+                listOf(ValueChanged(FieldPath.of("at"), a1, moved))
+```
+
+Most values need no declaration at all: primitives, `String`, enums, an inline `value class`, and the
+JDK and standard-library value types — `BigDecimal`, `UUID`, `Instant`, `LocalDate` and the rest — are
+compared by equality already. `@DiffAsValue` is for the types you declare yourself, and it is rejected
+where it would change nothing. → [What counts as a value](annotations.md#what-counts-as-a-value)
+
 ## Compare a type you cannot annotate
 
 Describe it in ordinary Kotlin. The result is indistinguishable from a generated differ to anything
@@ -210,9 +244,12 @@ object NumericMoneyDiffer : Differ<Money> {
 ```
 
 The change is added directly rather than through `compareValue` so it reports the values the model
-holds, not the normalised ones — which is exactly why the DSL cannot express this. Note that custom
-comparison is **per property, not per type**: there is no global "compare every `BigDecimal` this way".
-→ [When the DSL is not enough](hand-written.md#when-the-dsl-is-not-enough)
+holds, not the normalised ones — which is exactly why the DSL cannot express this. Note that a
+hand-written comparison is **per property, not per type**: there is no global "compare every
+`BigDecimal` this way", because a differ is code and code cannot be attached to a type you do not
+declare. Declaring that a type you *do* declare is one value is
+[the other recipe](#compare-a-type-as-a-single-value). →
+[When the DSL is not enough](hand-written.md#when-the-dsl-is-not-enough)
 
 ## Fire a callback when a value changes
 

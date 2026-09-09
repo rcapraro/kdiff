@@ -1,6 +1,6 @@
 # Annotation reference
 
-Seven annotations, all in `io.github.kdiff.annotations`, all `BINARY` retention.
+Eight annotations, all in `io.github.kdiff.annotations`, all `BINARY` retention.
 
 | Annotation | Target | Parameters | Purpose |
 |---|---|---|---|
@@ -8,12 +8,14 @@ Seven annotations, all in `io.github.kdiff.annotations`, all `BINARY` retention.
 | `@DiffKey` | property | — | mark the property that identifies an element inside a collection |
 | `@DiffIgnore` | property | — | exclude a property from comparison entirely |
 | `@DiffWith` | property | `differ: KClass<*>` | compare this property with a hand-written differ |
+| `@DiffAsValue` | class, property | — | compare the type, or one property, as a single value |
 | `@Trackable` | class | `depth: Int = UNLIMITED_DEPTH` | declare a tracking scope over every compared property |
 | `@TrackIgnore` | property | — | exclude a property from the declared tracking scope |
 | `@TrackDepth` | property | `depth: Int` | give one property its own tracking depth |
 
-Comparison and tracking follow the same shape: **the class opts in, properties opt out.** There is no
-property-level way to opt into either.
+Comparison and tracking follow the same shape: **the class opts in, properties opt out.** No property
+opts its class into comparison or tracking; `@DiffAsValue` and `@DiffWith` say *how* a property
+already being compared is compared.
 
 ## `@Diffable`
 
@@ -31,9 +33,10 @@ without one, because there is nothing an annotation could configure — a single
 compare. `@Diffable` on it is an error, and the message says so. See
 [a payload-free case](diffing.md#a-payload-free-case).
 
-All three annotations below are read **only** off a `@Diffable` class. On any other class each is an
-error naming the property and the missing `@Diffable`, rather than an annotation that silently
-configures nothing.
+The four property annotations below are read **only** off a `@Diffable` class. On any other class each
+is an error naming the property and the missing `@Diffable`, rather than an annotation that silently
+configures nothing. `@DiffAsValue` on a *class* is the one exception: it is a statement about the type
+itself, read by every `@Diffable` class that holds one.
 
 ## `@DiffKey`
 
@@ -50,6 +53,9 @@ since two elements matched by key are equal in it.
 The property is never compared and never contributes a change, however much it differs. It follows
 that it is never reconstructed by a patch, and never tracked.
 
+Honoured on a subclass that overrides the property — see
+[an overridden property](#a-comparison-annotation-on-an-overridden-property).
+
 ## `@DiffWith`
 
 The escape hatch for a property whose type cannot be annotated. `differ` must name an `object`
@@ -62,6 +68,114 @@ still patches.
 
 Not combinable with `@DiffIgnore`: an ignored property is never compared, so a differ named for it
 could never run. That pair is an error.
+
+Honoured on a subclass that overrides the property — see
+[an overridden property](#a-comparison-annotation-on-an-overridden-property).
+
+## `@DiffAsValue`
+
+Compares as a single value, by equality, reporting one `ValueChanged` carrying both sides and nothing
+beneath it. Honoured in two places, and the two mean different things:
+
+**On a class**, every property of that type, every list element of that type and every map value of
+that type is compared by equality — in every `@Diffable` class that reaches it, including classes in
+other modules. This is the per-type declaration, and like `@Diffable` it can only be made by whoever
+declares the type:
+
+<!-- from: kdiff-sample/src/main/kotlin/demo/Model.kt -->
+```kotlin
+@DiffAsValue
+data class Coordinates(val lat: Double, val lon: Double)
+```
+
+Honoured on any class kind you might reasonably compare whole: a small data class, a plain class with
+its own `equals`, an interface whose implementations are all values. Not combinable with `@Diffable` —
+one compares the type as a whole, the other property by property, and the pair is an error.
+
+kdiff trusts the equality it is pointed at and never inspects it. On a class that inherits identity
+equality, every independently built instance differs from every other, so such a property reports a
+change on every diff — writing `equals` is the declaration's other half, and yours to make.
+
+**On a property**, that property alone is compared by equality, whatever its type. It is the annotation
+counterpart of the `differ { }` builder's `field`, so the two routes describe the same model:
+
+<!-- from: kdiff-sample/src/main/kotlin/demo/Model.kt -->
+```kotlin
+@Diffable
+data class Site(val name: String, @DiffAsValue val at: Address)
+```
+
+`Address` stays `@Diffable` and is still compared property by property everywhere else; here a change
+inside it reports at `at` alone. A collection works the same way: `@DiffAsValue val tags: List<String>`
+reports one change at `tags` rather than one per index, and is applied by setting the whole list.
+
+Not combinable with `@DiffWith` (one says "by equality", the other names code) or with `@DiffIgnore`
+(an ignored property is never compared). **And rejected wherever it would change nothing** — on an
+enum, on a `value class`, or on a property whose type is already a value — because an annotation that
+reads as configuration should be configuration. Every message is in
+[errors.md](errors.md#diffasvalue-that-changes-nothing-or-contradicts-something).
+
+Tracking is unaffected: a value has nothing beneath it, and depth already stops at one.
+
+## A comparison annotation on an overridden property
+
+`@DiffAsValue`, `@DiffIgnore` and `@DiffWith` are honoured on a property that **overrides** an
+annotated one — typically a property a `@Diffable` sealed parent declares:
+
+<!-- from: kdiff-sample/src/main/kotlin/demo/Model.kt -->
+```kotlin
+@Diffable
+sealed interface Shipment {
+    @DiffAsValue val origin: Address
+}
+```
+
+Every subclass overriding `origin` compares it as one value, and so does the sealed parent's own differ
+when the two instances are different subclasses. The two dispatch branches agree, which is the point:
+Kotlin puts none of an overridden declaration's annotations on the `override`, so without this the
+annotation would hold across a subclass swap and be ignored for two instances of one subclass — the
+common case.
+
+**An annotation on the override wins.** A subclass saying `@DiffIgnore override val origin: Address`
+excludes the property for itself, whatever the parent declared. Only the nearest declaration carrying
+one of the three is read, so its annotations are never merged with a parent's into a pair the compiler
+would reject on a single declaration.
+
+A plain `override` in the middle of a hierarchy does not cancel anything: the search continues past it
+to the nearest annotated declaration above.
+
+This covers only the three annotations that configure *how a property is compared*. `@DiffKey` is read
+off a collection's element type rather than off the property holding it, and the tracking annotations
+describe a scope belonging to the annotated class — neither has an overridden declaration to read.
+
+## What counts as a value
+
+A value is compared by its own `equals` and reported as one change carrying both sides. kdiff treats
+these as values with no annotation at all:
+
+- a primitive, an unsigned integer type, a `Char`, a `String`, or an enum;
+- an inline `value class` — its equality is its single property's, which is what a diff compares by;
+- these immutable, value-equal types from the JDK and the Kotlin standard library:
+  `BigDecimal`, `BigInteger`, `UUID`, `Currency`, `Locale`, `URI`, the `java.time` value types
+  (`Instant`, `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetDateTime`, `OffsetTime`,
+  `ZonedDateTime`, `Duration`, `Period`, `Year`, `YearMonth`, `MonthDay`, `ZoneId`, `ZoneOffset`),
+  `kotlin.time.Instant` and `kotlin.uuid.Uuid`;
+- a type declared [`@DiffAsValue`](#diffasvalue).
+
+The criterion for that third group, so it can be read rather than remembered: **immutable, equal by
+value, from the JDK or the Kotlin standard library.** `java.util.Date` is not on it because it is
+mutable, and comparing a mutable object by equality at one instant says nothing about it at another.
+`File` and `Path` are not, because they name something rather than being a value. `kotlin.time.Duration`
+needs no entry — it is a `value class`. `kotlin.uuid.Uuid` is still `@ExperimentalUuidApi` in the
+current standard library, so declaring a property of that type is your own opt-in to make.
+
+A value is a value in **every** position: as a property, as a list element, as a map value.
+
+`BigDecimal` carries the one caveat worth stating: its `equals` is scale-sensitive, so
+`BigDecimal("10")` and `BigDecimal("10.00")` report a change. kdiff compares by equality on purpose and
+substitutes no other comparison for any type; for numeric equality, write it out with
+[`@DiffWith`](#diffwith) — the how-to's
+[*compare a value your own way*](how-to.md#compare-a-value-your-own-way) is that recipe.
 
 ## `@Trackable`
 
@@ -112,10 +226,15 @@ in your build log — see [errors.md](errors.md#1-compile-time), which is the co
 | Two or more `@DiffKey` on one type | names the type and the competing properties |
 | A property kdiff cannot compare, with no `@DiffWith` | names the property and its type, points at the escape hatch |
 | A `List` or `Map` whose elements are nullable and `@Diffable` | names the property and the element type, and the two ways out |
-| `@DiffKey`, `@DiffIgnore` or `@DiffWith` on a class that is not `@Diffable` | names the property and the missing `@Diffable` |
+| `@DiffKey`, `@DiffIgnore`, `@DiffWith` or `@DiffAsValue` on a class that is not `@Diffable` | names the property and the missing `@Diffable` |
 | `@DiffWith` together with `@DiffIgnore` | names the property, states the two conflict |
 | `@DiffWith` naming something that is not an `object` | names it, states an object is required |
 | `@DiffWith` naming an object that differs the wrong type | states it does not implement `Differ` of that property's type |
+| `@DiffAsValue` together with `@Diffable` on one class | names the type, states the two are opposite instructions |
+| `@DiffAsValue` on an enum or a `value class` | names it, states it is already compared as a value |
+| `@DiffAsValue` on a property whose type is already a value | names the property and the type, states the same |
+| `@DiffAsValue` together with `@DiffWith` | names the property, states a property is compared one way |
+| `@DiffAsValue` together with `@DiffIgnore` | names the property, states an ignored property is never compared |
 | `@Trackable(depth = 0)`, or negative other than `UNLIMITED_DEPTH` | names the declaration and the accepted values |
 | `@TrackDepth` with the same invalid depth | as above, reported at the property |
 | `@Trackable` without `@Diffable` | names the class, states `@Trackable` requires `@Diffable` |
