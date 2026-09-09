@@ -9,7 +9,15 @@ carry a breaking change; each one is called out under **Changed** with the migra
 The section for a version is what the release notes for its tag are built from, so keep a version's
 entry written for someone deciding whether to upgrade.
 
-## [Unreleased]
+## [0.7.0] - 2026-09-09
+
+Two things a stranger meets before the first line of Kotlin: the coordinates, and how much annotating
+a domain model costs. This release settles both — kdiff resolves from Maven Central with no repository
+block and no token, with sources and KDoc reaching the IDE, and the value types a domain model is full
+of now compare by equality with nothing declared on them.
+
+It also writes down what `1.0.0` will promise, in [`docs/api-stability.md`](docs/api-stability.md),
+before the tag rather than after it.
 
 ### Added
 
@@ -81,9 +89,9 @@ entry written for someone deciding whether to upgrade.
   ksp("io.github.kdiff:kdiff-processor:0.6.0")
 
   // after — Maven Central, nothing else to declare
-  implementation("io.github.rcapraro:kdiff-annotations:0.6.0")
-  implementation("io.github.rcapraro:kdiff-runtime:0.6.0")
-  ksp("io.github.rcapraro:kdiff-processor:0.6.0")
+  implementation("io.github.rcapraro:kdiff-annotations:0.7.0")
+  implementation("io.github.rcapraro:kdiff-runtime:0.7.0")
+  ksp("io.github.rcapraro:kdiff-processor:0.7.0")
   ```
 
   *Migration*: change the group id on the three coordinates and delete the
@@ -455,7 +463,8 @@ First release.
 
 - JDK 17 or later; built against a JVM 21 toolchain, Kotlin 2.4.10 and KSP 2.3.11.
 
-[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/rcapraro/kdiff/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/rcapraro/kdiff/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rcapraro/kdiff/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rcapraro/kdiff/compare/v0.3.1...v0.4.0

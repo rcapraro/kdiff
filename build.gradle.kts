@@ -19,7 +19,7 @@ subprojects {
     apply(plugin = "dev.detekt")
 
     group = "io.github.rcapraro"
-    version = "0.6.0"
+    version = "0.7.0"
 
     extensions.configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
         version.set(ktlintToolVersion)
