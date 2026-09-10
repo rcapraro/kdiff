@@ -16,6 +16,10 @@ run nothing beyond it.
 A gate SHALL be runnable on its own for a developer fixing one thing, and each gate SHALL name, in its
 failure output, the command that records or fixes what it found where such a command exists.
 
+The command SHALL remain runnable offline against an already-populated dependency cache. A gate that
+needs a published artefact SHALL obtain it from a repository the build itself produces, and SHALL NOT
+write to the developer's own local repository or require credentials.
+
 #### Scenario: The aggregate command covers every gate
 
 - **WHEN** a developer runs the aggregate check on a repository violating any one gate
@@ -32,14 +36,32 @@ failure output, the command that records or fixes what it found where such a com
 - **WHEN** a gate that has a recording or formatting command fails
 - **THEN** its output names that command
 
+#### Scenario: No gate writes outside the build directory
+
+- **WHEN** the aggregate check runs
+- **THEN** no gate publishes to the developer's local repository
+- **AND** no gate requires a credential
+
 ### Requirement: The published API surface is recorded and guarded
 
 Each published module SHALL have its public API surface recorded in a file checked into the
 repository. The build SHALL fail when a module's actual public API differs from its recorded one.
 
-The record SHALL cover exactly what consumers can compile against: the published modules' public and
-protected declarations. Modules that are not published SHALL NOT be recorded, and internal
-declarations SHALL NOT appear in the record.
+The record SHALL cover what consumers can compile against: the published modules' public and protected
+declarations. Modules that are not published SHALL NOT be recorded, and a declaration that is internal
+and reachable only from within its own module SHALL NOT appear in the record.
+
+The record SHALL also contain entries that are not part of what the library promises, because the
+platform requires them to exist: a declaration published solely so that a function inlined into a
+consumer can reach it, and the accessors an inline value class lowers to. These SHALL be recorded like
+anything else, so that their disappearance still fails the build, and the library's documented
+statement of what it promises SHALL name these categories, so that a reader of the record can tell a
+promise from an artefact of compilation.
+
+A published module whose artefact exists to provide a code-generation entry point SHALL record that
+entry point and nothing else. The processor's classes are reached by the compiler through the module's
+service registration, never named by a consumer, so anything else in its record would be a promise the
+module has no reason to make.
 
 Updating the record SHALL be a deliberate, single command, so that adding to the API is a one-line
 diff a reviewer can read and removing from it cannot happen unnoticed.
@@ -57,8 +79,21 @@ diff a reviewer can read and removing from it cannot happen unnoticed.
 
 #### Scenario: An internal declaration is not recorded
 
-- **WHEN** an internal declaration is added to a published module
+- **WHEN** an internal declaration reachable only from within its module is added to a published module
 - **THEN** the check passes without the record changing
+
+#### Scenario: A declaration published for inlining is recorded but not promised
+
+- **WHEN** a declaration is internal but published so that an inline function can reach it
+- **THEN** it appears in the record, and removing it fails the build
+- **AND** the documented statement of what the library promises identifies it as recorded rather than
+  promised
+
+#### Scenario: The code-generation module records only its entry point
+
+- **WHEN** the processor module's record is read
+- **THEN** it names the declaration the compiler loads through the service registration
+- **AND** it names no other declaration of that module
 
 #### Scenario: A non-published module has no record
 
@@ -184,6 +219,48 @@ reads locally.
 - **WHEN** a developer runs the aggregate check
 - **THEN** no documentation is produced
 
+### Requirement: Every message the documentation quotes is the message the code emits
+
+The documentation quotes the library's compile-time diagnostics, its construction-time refusals and its
+failure sentences verbatim, so that a reader holding an error can search for its text and find the page
+that explains it. That is only true while the two agree.
+
+The build SHALL check every message the documentation quotes against the sources that emit it, and
+SHALL fail when a quoted message is not emitted by any of them. A message reworded in the code and not
+on the page SHALL therefore fail the same single command that defines done, rather than leaving the
+page quietly wrong.
+
+A quoted message SHALL be matched by its literal text, ignoring the placeholders standing in for the
+names the author's own code supplies, so that a message assembled from a template is matched by the
+parts of it a reader would recognise.
+
+The check SHALL be reachable from the aggregate command, SHALL declare the documentation and the
+checked sources as inputs so that editing either re-runs it, and its failure SHALL name the quoted
+message and the page it appears on.
+
+#### Scenario: A reworded message fails the build
+
+- **WHEN** a message is reworded in the source that emits it and the page quoting it is not updated
+- **THEN** the check fails
+- **AND** its output names the quoted message and the page it appears on
+
+#### Scenario: A quoted message with placeholders is matched by its literal parts
+
+- **WHEN** a quoted message stands in for a declaration name with a placeholder
+- **THEN** the check matches it on the literal text around the placeholder
+- **AND** does not fail merely because the name differs
+
+#### Scenario: Editing either side re-runs the check
+
+- **WHEN** either the page or a source emitting a message it quotes is edited
+- **THEN** the check runs again rather than being treated as up to date
+
+#### Scenario: A message quoted for a page that no source emits fails
+
+- **WHEN** a page quotes a message no source emits, whether because it was invented or because it
+  outlived the code
+- **THEN** the check fails, naming it
+
 ### Requirement: Published artifacts are publicly resolvable and carry their sources and documentation
 
 Each published module SHALL be released to Maven Central, so that a consumer resolves it with the
@@ -203,8 +280,19 @@ replace it.
 What a release produces SHALL be inspectable locally, without publishing, so that the artifacts of a
 release can be checked before any tag exists.
 
+That a consumer can actually use what is published SHALL be checked by the build rather than by
+inspection. A build declaring the three published coordinates and nothing else of the library's SHALL
+be compiled and run as part of the aggregate command: it SHALL annotate a class, compile, and execute
+the generated code. Its dependencies SHALL be resolved as published artefacts, through the descriptors
+the release produces, so that a descriptor that omits what a consumer needs fails the build. The
+compile classpath of such a consumer SHALL carry nothing the code-generation module depends on.
+
 The group id SHALL be one whose namespace the maintainer can verify with the repository, and package
 names SHALL NOT change on account of it.
+
+A documentation page SHALL NOT state a version the build does not declare. This SHALL hold for the
+published coordinates and for the versions of the build tools a consumer must apply to use the library,
+since both are text a reader copies and neither is checked by anything else.
 
 #### Scenario: A consumer resolves the library with no repository configuration
 
@@ -212,6 +300,27 @@ names SHALL NOT change on account of it.
   released version
 - **THEN** the annotations, runtime and processor modules resolve
 - **AND** no credential is required
+
+#### Scenario: A consumer build compiles and runs against the published artifacts
+
+- **WHEN** the aggregate command runs
+- **THEN** a consumer build declaring only the three published coordinates, resolved as artefacts,
+  compiles an annotated class and executes its generated differ
+- **AND** the aggregate command fails when that build fails to resolve, to compile, or to produce the
+  expected diff
+
+#### Scenario: A descriptor missing what a consumer needs fails the build
+
+- **WHEN** a published module's descriptor omits a dependency the consumer requires
+- **THEN** the consumer build fails to resolve or to compile
+- **AND** the aggregate command fails with it
+
+#### Scenario: Generation dependencies stay off the consumer's compile classpath
+
+- **WHEN** the consumer build's compile classpath is examined
+- **THEN** it carries the annotations and runtime modules
+- **AND** it carries neither the code-generation library the processor uses nor the symbol-processing
+  API
 
 #### Scenario: Sources and documentation reach the consumer
 
@@ -249,3 +358,8 @@ names SHALL NOT change on account of it.
 - **WHEN** a documentation page states a coordinate with a literal version
 - **THEN** the build fails unless that coordinate's group id is the published one and its version is the
   one the build publishes
+
+#### Scenario: A documented build-tool version names the version the build uses
+
+- **WHEN** a documentation page tells a consumer which version of a build plugin to apply
+- **THEN** the build fails unless that version is the one the build itself uses

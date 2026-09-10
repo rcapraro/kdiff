@@ -40,11 +40,6 @@ twice, edits a declaration between the runs, and asserts which generated files w
 were not. This is the claim `docs/architecture.md` makes about non-aggregating dependencies, and the
 one 0.7.0 fixed a real bug in — found by reasoning, because nothing could catch it.
 
-**The gate runs in more than one environment.** Continuous integration runs the same single command it
-runs today, on a second operating system and on a JDK later than the toolchain's. The build filters on
-`File.separator` and the documentation spec resolves a repository root from a system property; neither
-has ever run on Windows.
-
 **The toolchain versions the documentation names are pinned to the build.** `README.md`'s install
 snippet hand-maintains `kotlin("jvm") version "2.4.10"` and the KSP plugin version, in the same fenced
 block whose coordinates are already checked. They are the same class of thing a reader copies, and they
@@ -54,6 +49,10 @@ are the half that can go stale silently.
 
 - Cross-Kotlin-version testing. The consumer build exercises the pair kdiff declares; a matrix over
   neighbouring Kotlin minors is a separate change with its own resolution problems.
+- **A continuous-integration matrix over operating systems or JDKs.** Proposed, implemented, and then
+  removed: it tests whether the *build* runs elsewhere, not whether the *library* works — nothing in
+  the published jars is OS-dependent — and no contributor on another platform exists to benefit.
+  Design D7 records the reasoning.
 - Publishing anything from `check`. The consumer build resolves from a repository inside `build/`;
   nothing touches `~/.m2` or the network beyond the dependencies Gradle already resolves.
 - Benchmark regression gating. JMH stays a tool a maintainer runs, not a gate.
@@ -71,8 +70,8 @@ None.
     that a consumer resolving only the published coordinates compiles and runs generated code is
     checked by the build rather than by inspection, and the toolchain versions the documentation names
     are checked like its coordinates.
-  - MODIFIED *One command runs every gate* — the single command is the one continuous integration runs,
-    and it runs it in more than one environment.
+  - MODIFIED *One command runs every gate* — it stays runnable without the network and without writing
+    outside the build directory, which is what lets a gate needing a published artefact hang off it.
   - ADDED *Every message the documentation quotes is the message the code emits*.
 - `diff-generation`:
   - MODIFIED *A generated differ is regenerated when a declaration it read changes* — the requirement
@@ -90,8 +89,8 @@ None.
 - **Annotation semantics**: unchanged.
 - **Build**: `./gradlew check` grows two test tasks and a publication to `build/`. Expect it to get
   slower — a TestKit build is a second Gradle invocation — which is the cost the design has to bound.
-- **CI**: `.github/workflows/ci.yml` gains a matrix. It still runs `./gradlew check` and nothing else,
-  per the requirement that says so.
+- **CI**: unchanged. It runs `./gradlew check` on one Ubuntu image at JDK 21, as it did, and picks up
+  the three new gates because they hang off that command.
 - **Docs**: `CONTRIBUTING.md` loses the paragraph admitting the `errors.md` hole and gains the new
   gates; `CLAUDE.md`'s *Docs are checked prose* section loses the sentence saying nothing in `check`
   compares a quoted message to the string the processor emits.

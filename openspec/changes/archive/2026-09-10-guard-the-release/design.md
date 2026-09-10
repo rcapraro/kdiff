@@ -141,15 +141,40 @@ every message long enough to matter is split to fit the column limit:
 
 1. **Join the source.** Collapse every `" + "` join between two string literals — quote, whitespace,
    `+`, whitespace, quote — so adjacent literals become one contiguous run of text.
-2. **Fragment the quotation.** Split each message quoted on the page at its `<…>` placeholders, which
-   is where the author's own names go.
-3. **Require every fragment of substance to appear** in the joined text of the sources
-   `CONTRIBUTING.md` already names. "Of substance" is the same threshold `DocumentationSamplesSpec`
-   already uses for a distinctive line, and for the same reason: a fragment of three words carries the
-   message, a fragment of one carries nothing and would only make the check brittle. A message with no
-   placeholder at all is one fragment and must appear whole.
+2. **Cut every source message into its literal runs.** Extract each string literal from the joined
+   text and split it at its own interpolations, `${…}` and `$name` alike. What is left is the part of
+   the message the code states literally.
+3. **A quoted message is verified when some source message's runs all appear in it, in order.**
+   Only runs of substance count — the same threshold `DocumentationSamplesSpec` uses for a distinctive
+   line, and for the same reason: three words carry the message, one carries nothing and would make the
+   check brittle.
 
-The failure names the page, the quoted message and the fragment that was not found.
+The failure names the page, the quoted message, and the run of the closest source message that did not
+appear in it.
+
+**Amended during implementation. The original had this backwards** — split the *quoted* message at its
+`<…>` placeholders, and require each fragment to appear in the joined source — and it produced six
+failures on a correct page and no true findings at all. Joining the concatenations worked exactly as
+designed. What was missed is that a page expands more than placeholders:
+
+```
+  the page quotes                          the source states
+  ---------------------------------------  ------------------------------------------
+  <Type> is an object, and an object in    is ${describeKind()}${objectHint()}
+  a @Diffable sealed hierarchy…            a helper's return value
+
+  its elements are nullable  /             its $part are nullable
+  its values are nullable                  one message, two renderings
+
+  …or UNLIMITED_DEPTH (-1)                 …or UNLIMITED_DEPTH ($UNLIMITED_DEPTH)
+  after 512 steps: …                       after $MAX_DESCENT steps: …
+                                           a constant's value
+```
+
+A placeholder is only the *page's* name for a variable part. Matching from the page inward asks the
+source to contain text the source never states, and a gate that fails a correct page fails `check` on a
+green repository. Reversing it compares only what both sides state literally, and every case above
+passes for the right reason while a reworded message still fails.
 
 **The constraint this creates, stated rather than discovered**: a diagnostic is one string expression
 built from adjacent literals and interpolations. A message assembled with `buildString`, `trimIndent`,
@@ -186,26 +211,35 @@ If it proves too slow to live in `check`, the honest response is to say so in `b
 rather than to move it to a CI step, because a gate CI runs and `check` does not is the thing that
 requirement exists to prevent.
 
-### D7 — The CI matrix is the same command, elsewhere
+### D7 — No CI matrix. Rejected after implementing it
 
-```
-  os              jdk   why
-  --------------  ----  ---------------------------------------------------------
-  ubuntu-latest   21    what runs today; the toolchain's own version
-  windows-latest  21    the build filters on File.separator and the documentation
-                        spec resolves a root from a system property; neither has
-                        ever run where a path separator is a backslash
-  ubuntu-latest    *    the current JDK: proves Gradle and the Kotlin plugin still
-                        run on a runtime later than the one they target, which is
-                        how a toolchain moving under the build is noticed early
-```
+A matrix over `{ubuntu, windows} × JDK {21, 25}` was proposed, written, and then removed. The reasoning
+for it was that the build filters generated sources on `File.separator` and the documentation specs
+resolve a repository root from a system property, and neither had ever run where a path separator is a
+backslash. That is true, and it is not a reason.
 
-`jvmToolchain(21)` means every job compiles for 21 whatever runs Gradle, so the third row tests the
-build's own tooling rather than the artefacts.
+**It tests the build, not the library.** kdiff ships jars. Nothing in the annotations, the runtime or
+the generated code is OS-dependent — a consumer on Windows runs the same bytecode, and their JVM
+decides that, not this repository's CI. A red Windows job would mean *a contributor cannot run
+`./gradlew check` on Windows*, which is a real claim but a much smaller one, and it is a claim about a
+contributor who does not exist: the maintainer is on macOS, CI is on Ubuntu, and no Windows contributor
+appears anywhere in the history.
 
-This does not violate *continuous integration adds no second command*: each job runs `./gradlew check`
-and nothing else. The requirement is amended to say so explicitly, so the next reader does not have to
-weigh it.
+The cost is not nominal either. TestKit spawns a second Gradle build, which is worst on Windows — the
+slowest square of the matrix, on every push — and the standing obligation is to fix Windows-specific
+path bugs for that same absent contributor.
+
+The JDK row is weaker still. `jvmToolchain(21)` means every job compiles for 21 whatever runs Gradle,
+so it tests Gradle and the Kotlin plugin on a newer runtime rather than anything kdiff produces: a
+modest early warning, and the row most likely to go red for reasons unrelated to this repository.
+
+**Chosen**: CI stays one job, `ubuntu-latest` at JDK 21, running `./gradlew check` and nothing else. The
+three gates this change adds hang off that command, so they run there without CI changing at all.
+
+What survives from the idea is worth stating: **the build is tested on one operating system only**, and
+macOS — the one the maintainer actually uses — is not that one. It is covered by `check` being run
+locally before anything is pushed, which is a person rather than a gate. If a contributor on another
+platform ever appears, this is the decision to reopen.
 
 ### D8 — The documented plugin versions join the coordinate check
 
@@ -232,8 +266,8 @@ only in CI, which `build-quality-gates` forbids for good reasons. Measure it on 
 and record the figure in `CONTRIBUTING.md`; if it is worse than expected, that is a conversation with a
 number in it.
 
-**TestKit on Windows is the slowest square of the matrix** → Accepted. It is also the square most
-likely to find something, since path handling is what it is there to test.
+**The build is exercised on one operating system only** → Accepted, and it is the position the
+repository was already in; D7 says why adding another was rejected rather than left implicit.
 
 **The fragment check can pass on a message that is wrong in a way no fragment captures** → True, and it
 is a floor rather than a proof: it catches the rewording, which is the failure `CONTRIBUTING.md`
@@ -261,9 +295,10 @@ behaviour.
 
 ## Open Questions
 
-- **Does the third CI row track the current JDK or a pinned later one?** Tracking "current" finds a
-  break the day it ships and turns an unrelated commit red. Leaning towards pinning the next LTS and
-  bumping it deliberately, which is a decision to take when the row is written rather than now.
-- **Does the consumer spec assert the compile classpath by resolving a configuration, or by asserting
-  that a source file naming KotlinPoet fails to compile?** The second is more direct and less coupled to
-  Gradle's API. To be settled in implementation; either satisfies the scenario.
+Both are settled.
+
+- **Which JDK the extra CI row tracks** — moot: there is no extra row. See D7.
+- **Whether the consumer spec asserts the compile classpath by resolving a configuration or by
+  compiling against it** — the second. A source file naming `FileSpec` fails with an unresolved
+  reference, which is a shorter statement than reading Gradle's resolution result and does not couple
+  the test to Gradle's API.

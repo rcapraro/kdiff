@@ -53,12 +53,6 @@ run nothing beyond it.
 A gate SHALL be runnable on its own for a developer fixing one thing, and each gate SHALL name, in its
 failure output, the command that records or fixes what it found where such a command exists.
 
-Continuous integration SHALL run that one command in more than one environment: on more than one
-operating system, so that a gate depending on how paths are spelled is exercised where they are spelled
-differently, and on a runtime later than the one the build targets, so that a toolchain moving under the
-build is a failure the repository sees before a contributor does. Running the command in several
-environments SHALL NOT be read as running a second command.
-
 The command SHALL remain runnable offline against an already-populated dependency cache. A gate that
 needs a published artefact SHALL obtain it from a repository the build itself produces, and SHALL NOT
 write to the developer's own local repository or require credentials.
@@ -72,13 +66,7 @@ write to the developer's own local repository or require credentials.
 #### Scenario: Continuous integration adds no second command
 
 - **WHEN** continuous integration runs for a commit
-- **THEN** each of its environments runs the aggregate check and nothing else
-
-#### Scenario: The gate runs on more than one operating system
-
-- **WHEN** continuous integration runs for a commit
-- **THEN** the aggregate check runs on more than one operating system
-- **AND** a gate that fails on only one of them fails the commit
+- **THEN** it runs the aggregate check and nothing else
 
 #### Scenario: A failing gate says how to fix itself
 
