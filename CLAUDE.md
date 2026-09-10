@@ -50,6 +50,10 @@ generated code, and generated Kotlin a human would be happy to read.
   with `differ { }`, plus an annotated mirror that `AnnotatedParitySpec` holds to the same output.
 - `kdiff-benchmarks` — JMH, not published, not on any consumer's path. Where a performance claim is
   settled before it is written down.
+- `kdiff-integration` — not published. Consumes the **artefacts** where every other module consumes the
+  project: a Gradle TestKit build declaring only the three published coordinates, resolved from a
+  repository under `build/`. The only place a generated POM, and regeneration across two builds, is
+  exercised at all.
 
 `UNLIMITED_DEPTH = -1` is deliberately declared **twice**, in `kdiff-annotations` and in
 `kdiff-runtime`, with a comment in each saying why: an annotation default must be a compile-time
@@ -139,9 +143,11 @@ object; `TrackScopeCompositionSpec` exists to catch its return.
 
 `docs/` is the published surface for behaviour, and three pages are pinned to code rather than to
 memory: `how-to.md` recipes are one-per-test in `kdiff-sample`'s `RecipesSpec`, `tutorial.md` is
-`kdiff-tutorial`, and `errors.md` quotes every diagnostic **verbatim**. Nothing in `check` compares a
-quoted message to the string the processor emits — so changing a `KSPLogger.error` message or a
-failure sentence means editing `errors.md` in the same commit. `docs/README.md` is the index.
+`kdiff-tutorial`, and `errors.md` quotes every diagnostic **verbatim** — checked by
+`DocumentationMessagesSpec`, which cuts each source message into the runs the code states literally and
+requires the page's quotation to contain them in order. So a diagnostic must be one string expression
+of adjacent literals and interpolations; `buildString` or a `when` returning halves arrives in pieces
+and is checked as pieces. `docs/README.md` is the index.
 
 `CONTRIBUTING.md` covers the same build for a human contributor; when a command changes, both move.
 

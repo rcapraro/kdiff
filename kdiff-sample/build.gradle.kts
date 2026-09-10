@@ -21,6 +21,12 @@ tasks.test {
     systemProperty("kdiff.group", project.group.toString())
     systemProperty("kdiff.version", project.version.toString())
 
+    // The install snippet tells a reader which Kotlin and KSP plugin versions to apply, in the same
+    // fenced block whose coordinates are already pinned. They are the same kind of thing a reader
+    // copies and the same kind of thing that goes stale, so they are checked the same way.
+    systemProperty("kdiff.kotlinVersion", libs.versions.kotlin.get())
+    systemProperty("kdiff.kspVersion", libs.versions.ksp.get())
+
     inputs.files(rootProject.file("README.md"), rootProject.file("CONTRIBUTING.md"))
         .withPropertyName("rootDocumentation")
         .withPathSensitivity(PathSensitivity.RELATIVE)
@@ -36,10 +42,14 @@ tasks.test {
     // kdiff-sample's own sources are listed with the rest, and are not covered by the module's
     // compile dependency: the samples are compared as *text*, so reflowing a cited line changes what
     // the check reads while leaving the classfile — and so this task's classpath input — identical.
+    // kdiff-processor/src/main is here for DocumentationMessagesSpec, which reads the diagnostics
+    // errors.md quotes out of it as text. Without it, rewording a diagnostic leaves this task
+    // UP-TO-DATE and the page unchecked — the same staleness the sources below are declared against.
     inputs.files(
         rootProject.fileTree("kdiff-sample/src"),
         rootProject.fileTree("kdiff-tutorial/src"),
         rootProject.fileTree("kdiff-runtime/src/main"),
+        rootProject.fileTree("kdiff-processor/src/main"),
     )
         .withPropertyName("verifiedSources")
         .withPathSensitivity(PathSensitivity.RELATIVE)

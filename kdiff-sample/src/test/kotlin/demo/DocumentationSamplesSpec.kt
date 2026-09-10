@@ -2,6 +2,7 @@ package demo
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import java.io.File
 
@@ -90,6 +91,42 @@ private val COORDINATE = Regex("""([\w.]+):(kdiff-[\w-]+):([^"'\s)]+)""")
 
 private fun String.isLiteralVersion(): Boolean = none { it == '$' || it == '{' }
 
+/**
+ * The build-tool versions a reader applies to use kdiff, and the one the badge claims it is built with.
+ *
+ * They sit in the same fenced block as the coordinates and go stale the same way — a reader copies the
+ * plugins block whole — but no coordinate regex reaches them, because they name Kotlin and KSP rather
+ * than kdiff. Read from the catalog for the reason the group id is read from the build: whatever the
+ * build actually uses is the only version that can be right.
+ */
+private val toolVersions: List<Triple<String, Regex, String>> = listOf(
+    Triple(
+        "the Kotlin plugin",
+        Regex("""kotlin\("jvm"\) version "([^"]+)""""),
+        System.getProperty("kdiff.kotlinVersion") ?: error("kdiff.kotlinVersion is not set"),
+    ),
+    Triple(
+        "the KSP plugin",
+        Regex("""id\("com\.google\.devtools\.ksp"\) version "([^"]+)""""),
+        System.getProperty("kdiff.kspVersion") ?: error("kdiff.kspVersion is not set"),
+    ),
+    Triple(
+        "the Kotlin badge",
+        Regex("""img\.shields\.io/badge/Kotlin-([^-]+)-"""),
+        System.getProperty("kdiff.kotlinVersion") ?: error("kdiff.kotlinVersion is not set"),
+    ),
+)
+
+private fun File.staleToolVersions(): List<String> = readText().let { text ->
+    toolVersions.flatMap { (what, pattern, expected) ->
+        pattern.findAll(text)
+            .map { it.groupValues[1] }
+            .filter { it.isLiteralVersion() && it != expected }
+            .map { "${relativePage()}: $what names $it, but the build uses $expected" }
+            .toList()
+    }
+}
+
 private fun File.staleCoordinates(): List<String> = COORDINATE.findAll(readText())
     .filter { it.groupValues[3].isLiteralVersion() }
     .filterNot { it.groupValues[1] == publishedGroup && it.groupValues[3] == publishedVersion }
@@ -146,6 +183,19 @@ class DocumentationSamplesSpec :
 
         test("every published coordinate in the documentation names $publishedGroup at version $publishedVersion") {
             coordinateBearingPages().flatMap { it.staleCoordinates() }.shouldBeEmpty()
+        }
+
+        test("every build-tool version in the documentation names the version the build uses") {
+            coordinateBearingPages().flatMap { it.staleToolVersions() }.shouldBeEmpty()
+        }
+
+        // A pattern that matches nothing reports nothing, so a reworded install snippet — a version
+        // catalog, `alias(libs.plugins.kotlin.jvm)`, a restyled badge — would leave the check above
+        // green while checking nothing at all, for ever.
+        toolVersions.forEach { (what, pattern, _) ->
+            test("the documentation still states $what somewhere for that check to read") {
+                coordinateBearingPages().count { pattern.containsMatchIn(it.readText()) } shouldBeGreaterThan 0
+            }
         }
 
         pages.forEach { page ->

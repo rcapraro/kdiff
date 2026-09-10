@@ -25,4 +25,5 @@ include(
     "kdiff-sample",
     "kdiff-tutorial",
     "kdiff-benchmarks",
+    "kdiff-integration",
 )

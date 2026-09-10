@@ -9,6 +9,16 @@ plugins {
 
 val publishedModules = setOf("kdiff-annotations", "kdiff-runtime", "kdiff-processor")
 
+// Named once and shared, because kdiff-integration reads both: the publication task it depends on is
+// derived from the repository name, and its consumer build resolves from the directory. Held in
+// `extra` rather than in a local, which only this script could see — a mismatch between the two would
+// surface as a consumer build that resolves nothing, with no error naming the cause.
+val BUILD_REPOSITORY = "buildRepo"
+val BUILD_REPOSITORY_PATH = "repo"
+
+extra["buildRepositoryName"] = BUILD_REPOSITORY
+extra["buildRepositoryPath"] = BUILD_REPOSITORY_PATH
+
 // Read here rather than inside `subprojects`: the type-safe catalog accessors exist only in the
 // root project's own script scope.
 val ktlintToolVersion = libs.versions.ktlintTool.get()
@@ -93,12 +103,28 @@ subprojects {
     }
 
     if (project.name in publishedModules) {
-        // Deliberately not wired into `check`: reference documentation is an artefact to publish, not
-        // a gate to pass, and building it on every check costs every contributor time for output
-        // nobody reads locally. Run `./gradlew dokkaGenerate` when it is wanted.
+        // Not wired into `check` as a gate — reference documentation is an artefact to publish, not
+        // something to pass. Run `./gradlew dokkaGenerate` to read it.
+        //
+        // It does nonetheless run during `check`, and that is worth knowing rather than discovering:
+        // kdiff-integration's consumer build resolves the three modules from `build/repo`, publishing
+        // there runs the real publication, and the real publication carries a Dokka javadoc jar. About
+        // 4s of a ~52s check. Testing what a release actually produces is what buys that, and a
+        // publication that skipped the javadoc jar locally would no longer be that release.
         apply(plugin = "org.jetbrains.dokka")
 
         apply(plugin = "com.vanniktech.maven.publish.base")
+
+        // A repository inside the build, for the consumer build in kdiff-integration to resolve from.
+        // `publishToMavenLocal` would do the same job — it is what a maintainer runs to inspect a
+        // release — but making `check` write to `~/.m2` would grow every contributor's local
+        // repository on every build, and a stale entry left there would shadow the next build's output.
+        extensions.configure<PublishingExtension> {
+            repositories.maven {
+                name = BUILD_REPOSITORY
+                url = rootProject.layout.buildDirectory.dir(BUILD_REPOSITORY_PATH).get().asFile.toURI()
+            }
+        }
 
         extensions.configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
             // Stated rather than left to the plugin's platform detection, which is `@Incubating`, and

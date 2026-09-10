@@ -14,7 +14,7 @@
 ./gradlew :kdiff-benchmarks:jmh                   # measure, when a change touches a hot path
 ```
 
-`check` is still the one command CI runs. Four gates hang off it, and each names its own fix:
+`check` is still the one command CI runs. Seven gates hang off it, and each names its own fix:
 
 - **ktlint**, with the formatting stated in `.editorconfig`. `ktlintFormat` fixes what it reports.
 - **detekt**, configured in `config/detekt/detekt.yml`. That file holds *only* this project's
@@ -30,6 +30,23 @@
   [`docs/api-stability.md`](docs/api-stability.md#1-what-is-recorded) says which entries those are, and
   is where a promise about the public surface is written down — so a change to what kdiff guarantees
   belongs on that page, not only in the dump.
+
+- **A consumer build against the published artefacts**, in `kdiff-integration`. The three modules are
+  published to a repository under `build/` — never `~/.m2`, and never the network — and a Gradle
+  TestKit build declaring only the three coordinates compiles an annotated class and runs its differ.
+  This is the only thing in the repository that reads a generated descriptor: `kdiff-sample` consumes
+  the *project*, so a broken POM is invisible to it. Run it alone with
+  `./gradlew :kdiff-integration:test`.
+- **Regeneration, in both directions**, in the same module: a build, an edit, a second build. That a
+  changed declaration regenerates its readers, and that an unrelated annotated class is left alone.
+- **The documentation's quoted messages**, described under `docs/errors.md` below.
+
+The first two are what the second Gradle invocation costs — the messages gate runs inside
+`:kdiff-sample:test`, in the same invocation as everything else. `./gradlew check --rerun-tasks` goes
+from about 50s to about 1m02s on a warm cache, so budget **~12s**, of which about 4s is the Dokka
+javadoc jar that publishing to `build/repo` now pulls in. If that ever stops being worth it, the
+answer is to argue with the requirement in `openspec/specs/build-quality-gates/`, not to move the gate
+into a CI step — a gate CI runs and `check` does not is what that requirement exists to prevent.
 
 detekt is pinned to a `2.0.0-alpha`. That is deliberate — it is the release built against this
 project's Kotlin, where stable 1.23.8 still embeds Kotlin 2.0.21 — and the version is pinned exactly
@@ -118,12 +135,17 @@ unchecked block belongs:
   `TrackScope.kt` and `Route.kt` (construction-time `require`s), and `Patcher.kt` and `Errors.kt`
   (failure sentences and the declared exceptions).
 
-  **Nothing checks that page against them.** A diagnostic string in a Markdown table is not a fenced
-  Kotlin block, so `DocumentationSamplesSpec` cannot reach it. Most messages *are* asserted somewhere —
-  `DiagnosticSpec`, `RouteSpec`, `TrackScopeCompositionSpec`, `PatchFailureCaseSpec`,
-  `CyclicStructureSpec` — but several are asserted only as substrings, or against the same constant the
-  production code uses, and a handful are not asserted at all. So a reworded message can leave `check`
-  green and the page wrong. **If you reword a message, search `docs/errors.md` for the old text.**
+  `DocumentationMessagesSpec` in `kdiff-sample` checks the page against them, and those files are
+  declared inputs of that task, so rewording a message re-runs it. The check cuts each source message
+  into the runs of text the code states literally — splitting at `${…}` and `$name` — and asks whether
+  the page's quotation contains them in order. It reads the source as ground truth, since a page
+  expands more than the `<…>` placeholders it marks: `$part` becomes *elements* or *values*, and
+  `$MAX_DESCENT` becomes *512*.
+
+  **So a diagnostic is one string expression of adjacent literals and interpolations.** Concatenation
+  across lines is fine and expected — the check rejoins it. One assembled with `buildString`, with
+  `trimIndent`, or from a `when` returning halves arrives in pieces and is checked as pieces, which
+  weakens the gate without telling you.
 
 The same spec pins the published coordinates. Every `io.github.rcapraro:kdiff-<module>:<version>` on a
 documentation page — this one included, in a fenced block, a shell snippet or plain prose — must name
