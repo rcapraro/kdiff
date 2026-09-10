@@ -68,9 +68,10 @@ the library's name.
 The processor goes on the `ksp` configuration, never `implementation`. That is what keeps it off your
 runtime classpath — it runs inside the compiler and has no business being shipped.
 
-Requires JDK 21 or later, and a JVM target of 21: the library is built against a JVM 21 toolchain, and
-its builder entry points are `inline` so they can state that they run your block exactly once — which
-Kotlin will not inline into a module compiling for an older target.
+kdiff targets JVM 21, so your module needs a JDK 21 or later **and** a JVM target of 21. The second
+half is the one that surprises: several entry points are `inline`, and Kotlin will not inline bytecode
+built for a higher target into a module compiling for an older one. →
+[Platform](docs/api-stability.md#6-platform)
 
 ## Quickstart
 
@@ -179,11 +180,13 @@ Released and published to Maven Central, with sources and documentation jars. Th
 [releases](https://github.com/rcapraro/kdiff/releases) page carries the same notes — between them they
 are the only description of a version, so this page does not repeat one.
 
-No compatibility guarantee is offered before `1.0.0`.
-[API stability](docs/api-stability.md) says what `1.0.0` will promise — what is recorded, what is
-closed, and which questions were answered "no" — and
-[what kdiff does not do](docs/architecture.md#what-kdiff-does-not-do) is worth reading before adopting
-it.
+No compatibility guarantee is offered before `1.0.0`. What `1.0.0` will promise is written down now
+rather than after the tag, in [API stability](docs/api-stability.md): the recorded public API of the
+three published modules, the one change vocabulary that is closed and the one that may grow, the three
+additions a minor version may make and what code written before each still does, the JVM and Kotlin
+platform, and which questions were answered "no". Read
+[what kdiff does not do](docs/architecture.md#what-kdiff-does-not-do) alongside it before adopting the
+library.
 
 ## Contributing
 

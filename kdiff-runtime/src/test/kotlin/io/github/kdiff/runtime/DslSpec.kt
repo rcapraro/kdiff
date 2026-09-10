@@ -35,6 +35,19 @@ private val MoneyDiffer: Differ<Money> = differ {
     field(Money::currency)
 }
 
+/**
+ * A comparison interface that has gained a member carrying its own implementation.
+ *
+ * The language guarantee the capability interfaces' growth clause rests on: such a member does not
+ * stop a `fun interface` converting from a lambda. Declared here rather than by adding a member to
+ * [Differ], because the promise is about what adding one would cost, and the answer is nothing.
+ */
+private fun interface Grown<T> {
+    fun diff(before: T, after: T): Diff
+
+    fun isEmptyFor(value: T): Boolean = diff(value, value).isEmpty()
+}
+
 private val PostalCodeDiffer: Differ<PostalCode> = differ { field(PostalCode::value) }
 
 private val LocationDiffer: Differ<Location> = differ {
@@ -152,6 +165,15 @@ class DslSpec :
                 )
 
                 patched.value shouldBe Money("12", "EUR")
+            }
+
+            test("a member carrying its own implementation leaves a fun interface convertible") {
+                val amountOnly = Grown<Money> { before, after ->
+                    Diff(buildList { compareValue("amount", before.amount, after.amount) })
+                }
+
+                amountOnly.diff(Money("10", "EUR"), Money("12", "EUR")).size shouldBe 1
+                amountOnly.isEmptyFor(Money("10", "EUR")) shouldBe true
             }
         }
 

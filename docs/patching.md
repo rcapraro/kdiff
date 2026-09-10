@@ -50,9 +50,9 @@ Changes that can be applied *are* applied even when others fail, so `value` is a
 Each `PatchFailure` carries the `Change` it could not apply and a `reason`, and renders as
 `path: reason`.
 
-A `reason` is a case, not a sentence. `PatchFailure.Reason` is sealed and closed the way `Change` is,
-so a caller can branch on *why* a change did not apply and read off which property, key or index it
-concerned — without matching prose that may be reworded:
+A `reason` is a case, not a sentence. `PatchFailure.Reason` is sealed, so a caller can branch on *why* a
+change did not apply and read off which property, key or index it concerned — without matching prose
+that may be reworded. Note the `else`, which is not optional politeness:
 
 <!-- illustrative -->
 ```kotlin
@@ -66,8 +66,14 @@ result.failures.forEach { failure ->
 }
 ```
 
-Adding a case to that vocabulary is a breaking change, for the same reason adding a sixth `Change`
-variant would be: it breaks every exhaustive `when`.
+**A minor version may add a case.** Unlike `Change`, whose five variants are closed because routing
+dispatches on them, a reason is something you report — and every release that taught kdiff to apply a
+shape it used to refuse wanted a new one. So branch on the reasons you act on and let an `else` carry
+the rest.
+
+Reporting a failure needs no branch at all: `failure.toString()` renders every case, including one
+declared after your code was written. → [What is closed, and what may
+grow](api-stability.md#2-what-is-closed-and-what-may-grow)
 
 ### Requiring the whole patch
 

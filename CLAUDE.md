@@ -73,6 +73,12 @@ which a builder cannot know how to do — hence `Patcher` has none, and a `@Diff
 only compare makes its property unpatchable (`unpatchable()` reports the changes as failures). This
 axis is why the API is shaped as it is; extend along it rather than across it.
 
+Extending along it is now a **promise**, not only a design principle: `docs/api-stability.md` §4 says a
+capability interface may gain a member carrying its own implementation, and a generated object may
+declare a further capability interface, in a minor version. A member *without* an implementation is
+breaking. So a new capability is a new interface, and a widened one keeps every hand-written
+implementation compiling.
+
 A hand-written differ or scope must be indistinguishable from a generated one to anything consuming
 it — that is a spec'd requirement, not just a convention.
 
@@ -83,9 +89,11 @@ A `Diff` is a flat, ordered `List<Change>`, and an `Iterable<Change>` in its own
 so callers can handle it exhaustively. Adding a sixth variant breaks every exhaustive `when` in every
 consumer — treat it as breaking.
 
-`PatchFailure.Reason` is a **second closed vocabulary**, on the same terms: fourteen cases, rendered by
-one exhaustive `when` in `describe()`, and adding a case is breaking. A failure carries a case, never a
-sentence; `toString()` is where the sentence lives.
+`PatchFailure.Reason` is sealed on **different** terms: fourteen cases so far, and **adding one is a
+minor version, not a break**. A reason is reported rather than dispatched on, so the safety comes from
+elsewhere — nothing outside the library can declare a case, and `describe()`'s exhaustive `when` keeps
+`toString()` total for every case including a new one. Callers are told to branch with an `else`. A
+failure carries a case, never a sentence; `toString()` is where the sentence lives.
 
 Refusals are declared types: `DuplicateDiffKeyException` and `CyclicStructureException` (both
 `IllegalArgumentException`, so old `catch` clauses still fire) and `PatchFailedException` (an

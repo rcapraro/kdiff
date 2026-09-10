@@ -9,6 +9,87 @@ carry a breaking change; each one is called out under **Changed** with the migra
 The section for a version is what the release notes for its tag are built from, so keep a version's
 entry written for someone deciding whether to upgrade.
 
+## [Unreleased]
+
+### Added
+
+- **The recorded API and the promised API are stated as two different things.**
+  [`docs/api-stability.md`](docs/api-stability.md) §1 now names the entries the ABI dump records
+  *without* promising: a declaration published only so that an `inline` function can reach it
+  (`ChangeRoutes.register`, `ChangeRoutes.dispatch`, `ElementRoutes.dispatch` and the routing classes'
+  constructors), and the accessors an inline `value class` lowers to (`FieldPath.box-impl`,
+  `constructor-impl`, and the mangled `getPath-…` on each `Change` variant). They stay in the dump, so
+  their removal still fails the build — that is what a mechanical dump is for. What they are not is
+  yours to call, and the mangled accessors are the concrete reason kdiff is not designed for Java
+  consumers: `change.getPath()` is not a method that exists.
+
+- **The three additions a minor version may make are written down, each with what code written before
+  it still does**: a further `PatchFailure.Reason` case, a member on `Differ`, `Patcher` or `Tracked`
+  carrying its own implementation, and a further capability interface on a generated object. A
+  hand-written `object : Patcher<T>` inherits a defaulted member, and `Differ<T> { … }` keeps
+  converting, because a `fun interface` admits non-abstract members. A member *without* an
+  implementation stays breaking.
+
+- **A Kotlin and KSP compatibility policy**, which the repository previously stated nowhere. The
+  runtime and annotations require a Kotlin compiler at least the version they were built with, because
+  an older one cannot read their metadata; the processor expects the KSP plugin matching your Kotlin
+  version, which is the one you apply anyway. **A Kotlin minor is tracked by a kdiff minor**, and only
+  the declared pair is tested. → [Kotlin and KSP](docs/api-stability.md#7-kotlin-and-ksp)
+
+- Two questions in [the FAQ](docs/faq.md): *Which Kotlin version do I need?* and *What may change in a
+  kdiff minor?*
+
+- **An experimental opt-in tier is recorded as declined**, with the reasoning and its cost — an
+  addition in `1.x` is permanent from the release that makes it, which is a reason to add slowly rather
+  than a reason for a marker every call site would carry.
+
+### Changed
+
+- **BREAKING** — **`PatchFailure.Reason` is no longer a closed vocabulary.** `0.7.0` said it was sealed
+  *and closed*, on the same terms as `Change`: fourteen cases, and adding one breaking. That is
+  retracted. It stays sealed — nothing outside kdiff declares a case, and every case still carries the
+  facts it knows as properties — but **a minor version may now declare a further reason**. A reason
+  accompanies a newly supported shape, and both releases since the vocabulary was declared wanted new
+  ones; freezing the set for the length of `1.x` would make the next supported shape choose between a
+  major version and a reason that misdescribes itself.
+
+  `Change` is unaffected and stays closed. The two differ in what a caller does with them: a change is
+  what routing *dispatches* on, so exhaustive handling is the reason the type is sealed at all; a reason
+  is what a caller *reports*.
+
+  Nothing about this release's behaviour changes — there are still fourteen cases and none has moved.
+  What changes is what a later release may do, which is why the loosening lands before `1.0.0` rather
+  than after it.
+
+  *Migration*: if you match reasons exhaustively with no `else`, add one. Such a `when` compiles against
+  this release and against every release that adds nothing; the release that adds a case makes it a
+  compile error on recompilation, and — because Kotlin lowers an exhaustive `when` to a throw on the
+  branch it believes unreachable — a `NoWhenBranchMatchedException` if the code is not recompiled. A
+  caller that only logs or renders failures needs no change at all: `PatchFailure.toString()` covers
+  every case, including one declared after your code was written.
+
+- **BREAKING** — **`DiffProcessor` is `internal`.** `kdiff-processor`'s recorded API is now the single
+  declaration its artifact exists to provide, `DiffProcessorProvider`, which the compiler loads through
+  the module's service registration. A dump of exactly one entry is what fails the build the day a
+  helper class becomes public by accident.
+
+  Marked breaking because a recorded public declaration disappears, which this project treats as
+  breaking without exception. *Migration*: none — a consumer that named `DiffProcessor` was constructing
+  a symbol processor outside a compiler.
+
+- **JVM 21 is stated as the platform kdiff targets, rather than as fallout from `inline`.** No
+  requirement moved and no code changed: a consuming module still needs a JDK 21 or later *and* a JVM
+  target of 21. What changed is that the README and the FAQ derived that from the builder entry points
+  being `inline`, which read as an accident with a workaround behind it. It is a choice, and two things
+  follow from it — class files a JVM 21 loads, and `inline` entry points a consumer must *compile* at
+  target 21 to use. Those entry points are `differ { }`, `trackScope { }`, `tracker { }`, `Diff.route`
+  and `ChangeRoutes.onEach`, so the requirement reaches a consumer who only routes a generated differ's
+  diff, not just one who writes a differ by hand.
+
+- Every promise in `docs/api-stability.md` now says when it takes effect: **at `1.0.0`**. Until then a
+  minor version may break anything on that page, including a promise on it — which is what writing it
+  before the tag is for.
+
 ## [0.7.0] - 2026-09-09
 
 Two things a stranger meets before the first line of Kotlin: the coordinates, and how much annotating

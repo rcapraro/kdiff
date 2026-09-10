@@ -75,6 +75,8 @@ public class TrackScope<T> internal constructor(
  * Implemented by the differ generated for a `@Trackable` class, alongside the comparison and
  * application it already carries, so that one declaration serves all three. A tracker reads the scope
  * from here whenever its caller names no property of its own.
+ *
+ * This interface may gain a member on the terms [Differ] states.
  */
 public interface Tracked<T> {
     public val trackScope: TrackScope<T>

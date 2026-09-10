@@ -16,6 +16,8 @@ package io.github.kdiff.runtime
  * [DuplicateDiffKeyException] instead of returning a result. A cyclic source is refused the same way,
  * with [CyclicStructureException]. Neither is a change failing — it is the
  * source being unrebuildable, so there is no partial value to hand back.
+ *
+ * This interface may gain a member on the terms [Differ] states.
  */
 public fun interface Patcher<T> {
     public fun apply(before: T, changes: List<Change>): PatchResult<T>
@@ -58,10 +60,25 @@ public data class PatchFailure(public val change: Change, public val reason: Rea
     override fun toString(): String = "${change.path}: ${reason.describe()}"
 
     /**
-     * Every reason kdiff can decline to apply a change.
+     * Every reason kdiff can decline to apply a change, so far.
      *
-     * Sealed, and closed on purpose, exactly as [Change] is: a caller handles these exhaustively, so
-     * adding a case is a breaking change to a published vocabulary.
+     * Sealed, so nothing outside the library declares one and every case carries the facts it knows
+     * as properties. **Not closed the way [Change] is**: a release that teaches kdiff to apply a shape
+     * it used to refuse may declare a further reason, and does so in a minor version. The two
+     * vocabularies differ in what a caller does with them — a [Change] is dispatched on, and
+     * exhaustive routing is why it is sealed; a reason is reported.
+     *
+     * So branch on the reasons you act on and say what you do with the rest:
+     *
+     * ```
+     * when (val reason = failure.reason) {
+     *     is NoElementForKey -> reinstate(failure.change)
+     *     else -> log(failure)
+     * }
+     * ```
+     *
+     * A caller that only reports failures needs no branch at all: [PatchFailure.toString] renders
+     * every reason, including one declared after that caller was written.
      */
     public sealed interface Reason {
         /** The path named no property the type compares. [type] is the type that has no such property. */

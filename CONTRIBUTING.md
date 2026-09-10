@@ -25,6 +25,12 @@
   Adding or removing a public declaration fails `check` until you run `updateKotlinAbi`, which is the
   point: a removal should be a line in a diff a reviewer reads, not a surprise for a consumer.
 
+  The dump is a detector, not a description of the promise: it also records `@PublishedApi internal`
+  members and the accessors a `value class` lowers to, because the platform requires them to exist.
+  [`docs/api-stability.md`](docs/api-stability.md#1-what-is-recorded) says which entries those are, and
+  is where a promise about the public surface is written down — so a change to what kdiff guarantees
+  belongs on that page, not only in the dump.
+
 detekt is pinned to a `2.0.0-alpha`. That is deliberate — it is the release built against this
 project's Kotlin, where stable 1.23.8 still embeds Kotlin 2.0.21 — and the version is pinned exactly
 so no upgrade arrives on its own. If an alpha ever breaks the build, the escape is `ignoreFailures`
@@ -33,7 +39,9 @@ for one release with a note here saying so, not a downgrade.
 Generated code lands in `kdiff-sample/build/generated/ksp/main/kotlin/demo/`. Read it after any
 processor change — it is how you check what the processor actually did.
 
-Requires a JDK; the build uses a JVM 21 toolchain and Gradle will provision one if needed.
+Requires a JDK; the build uses a JVM 21 toolchain and Gradle will provision one if needed. kdiff
+targets JVM 21 deliberately — a consumer compiles at that target as well as running on it, because
+several entry points are `inline`. Do not lower it to widen adoption without a change that says so.
 
 Tests are Kotest on the JUnit platform, and test names are sentences — so `--tests` filters on the
 spec *class*, not the test name.

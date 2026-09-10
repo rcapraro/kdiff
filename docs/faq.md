@@ -177,13 +177,43 @@ library. → [Install](../README.md#install)
 
 ### Which platforms are supported?
 
-Kotlin/JVM only. There are no multiplatform targets, and the annotations are not designed for Java
-consumers. The build requires JDK 21 or later **and** a JVM target of 21 — the builder entry points
-are `inline` so they can state they run your block exactly once, which Kotlin will not inline into a
-module compiling for an older target.
+Kotlin/JVM only, targeting JVM 21. There are no multiplatform targets, and the annotations are not
+designed for Java consumers — reading `Change.path` compiles to a name-mangled getter, because
+`FieldPath` is a `value class`.
+
+Your module needs a JDK 21 or later **and** a JVM target of 21. The target is the half worth knowing
+about in advance: several entry points are `inline`, and Kotlin will not inline bytecode built for a
+higher target into a module compiling for an older one, so `differ { }` — and `diff.route { }`, which
+is `inline` too — fails to compile at target 17 with *"Cannot inline bytecode built with JVM target
+21"*.
 
 Nothing in this repository tests any other environment, so no claim is made about one. →
-[What kdiff does not do](architecture.md#what-kdiff-does-not-do)
+[Platform](api-stability.md#6-platform),
+[what kdiff does not do](architecture.md#what-kdiff-does-not-do)
+
+### Which Kotlin version do I need?
+
+At least the one kdiff was built with — the [README](../README.md) badge names it. An older compiler
+refuses `kdiff-runtime` outright, because it cannot read metadata newer than its own. The processor
+expects the KSP plugin matching *your* Kotlin version, which is the one you apply anyway.
+
+A Kotlin minor is tracked by a kdiff minor, and only the declared pair is tested. →
+[Kotlin and KSP](api-stability.md#7-kotlin-and-ksp)
+
+### What may change in a kdiff minor?
+
+Additions, and three of them are worth knowing about because they touch code you may already have
+written:
+
+- **a further `PatchFailure.Reason` case**, which is why a branch on reasons wants an `else`. Rendering
+  a failure needs no branch at all and is unaffected.
+- **a member on `Differ`, `Patcher` or `Tracked`** carrying its own implementation, which a
+  hand-written `object : Patcher<T>` inherits and a `Differ<T> { … }` lambda ignores.
+- **a further capability interface on a generated object**, which leaves everything it already
+  declares alone.
+
+A `Change` variant is *not* on that list: the change vocabulary is closed, so a sixth would be a major
+version. → [What is closed, and what may grow](api-stability.md#2-what-is-closed-and-what-may-grow)
 
 ### Can I serialise a `Diff` and send it somewhere?
 

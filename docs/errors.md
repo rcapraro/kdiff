@@ -256,8 +256,8 @@ split that, leaving it undecided which sees an unclaimed change.
 and `failures` says what is missing. Each `PatchFailure` carries the `Change` it declined and a
 `reason`, and renders as `<path>: <sentence>`.
 
-`PatchFailure.Reason` is sealed and closed, with fourteen cases. They fall into five causes, and the
-cause is what tells you what to do:
+`PatchFailure.Reason` is sealed, with fourteen cases so far. They fall into five causes, and the cause
+is what tells you what to do:
 
 ```
    your model cannot rebuild it        ->  change the declaration
@@ -271,6 +271,11 @@ cause is what tells you what to do:
 ```
 
 Every case below is covered by a test in `kdiff-runtime`'s `PatchFailureCaseSpec`.
+
+**The set may grow.** A minor version that teaches kdiff to apply a shape it used to refuse may declare
+a further case, so branch on the reasons you act on and let an `else` carry the rest — and note that
+rendering a failure needs no branch at all. → [What is closed, and what may
+grow](api-stability.md#2-what-is-closed-and-what-may-grow)
 
 ### Cause A — your model cannot rebuild that property
 

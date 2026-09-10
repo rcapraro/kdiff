@@ -113,11 +113,18 @@ builders and not three; why a `@DiffWith` object that only compares makes its pr
 but still fully *trackable*; and why tracking needs no `@TrackWith` escape hatch at all. If you extend
 kdiff, extend along this axis rather than across it.
 
+Extending along it is also the growth the library has promised itself room for: a further capability
+interface on the generated object leaves everything already declared on it alone, and an existing
+capability interface may gain a member as long as that member carries an implementation. →
+[What generated code promises](api-stability.md#4-what-generated-code-promises)
+
 ## The change model
 
 A `Diff` is a flat, ordered `List<Change>`, and `Change` is a **sealed, closed** vocabulary of five
 variants. Closed is a promise: a `when` over a change can be exhaustive and stay that way, so adding
-a sixth variant is treated as a breaking change rather than an addition.
+a sixth variant is treated as a breaking change rather than an addition. `PatchFailure.Reason` is
+sealed on different terms — a reason is reported rather than dispatched on, so the set
+[may grow in a minor version](api-stability.md#2-what-is-closed-and-what-may-grow).
 
 Locations are a `FieldPath` — a value class over a list of `Segment`s that are either a property name,
 an index, or a key. A key segment retains the key *as its own value* rather than as text, so an entry
@@ -215,10 +222,12 @@ no representable diff — a path names a keyed element by its key value alone �
 such a list throws rather than guessing. Uniqueness is a property of the data, so no compile error is
 possible; this is the one input the library refuses instead of describing.
 
-**Kotlin/JVM only.** No multiplatform targets, and the annotations are not designed for Java
-consumers.
+**Kotlin/JVM only, targeting JVM 21.** No multiplatform targets, and the annotations are not designed
+for Java consumers. A consuming module compiles at target 21 as well as running on it, because several
+entry points are `inline`.
 
-The compatibility position is in the README's [Status](../README.md#status); it is not repeated here.
+The compatibility position is in the README's [Status](../README.md#status) and, at length, in
+[API stability](api-stability.md); neither is repeated here.
 
 ## Compile-time diagnostics, never silent fallbacks
 
