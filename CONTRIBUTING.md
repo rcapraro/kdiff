@@ -184,7 +184,7 @@ Nothing is signed locally — the signing key lives only in the workflow.
 Central takes a few minutes to sync after the workflow finishes. Confirm the release resolved:
 
 ```bash
-curl -sI https://repo1.maven.org/maven2/io/github/rcapraro/kdiff-runtime/0.7.0/kdiff-runtime-0.7.0.pom
+curl -sI https://repo1.maven.org/maven2/io/github/rcapraro/kdiff-runtime/1.0.0/kdiff-runtime-1.0.0.pom
 ```
 
 ### One-time setup, and how to rotate it

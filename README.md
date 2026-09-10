@@ -56,9 +56,9 @@ plugins {
 }
 
 dependencies {
-    implementation("io.github.rcapraro:kdiff-annotations:0.7.0")
-    implementation("io.github.rcapraro:kdiff-runtime:0.7.0")
-    ksp("io.github.rcapraro:kdiff-processor:0.7.0")
+    implementation("io.github.rcapraro:kdiff-annotations:1.0.0")
+    implementation("io.github.rcapraro:kdiff-runtime:1.0.0")
+    ksp("io.github.rcapraro:kdiff-processor:1.0.0")
 }
 ```
 

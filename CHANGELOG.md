@@ -3,15 +3,57 @@
 All notable changes to this project are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
-to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before `1.0.0` a minor version may
-carry a breaking change; each one is called out under **Changed** with the migration.
+to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). From `1.0.0` a breaking change takes a
+major version; the `0.x` entries below predate that, and each breaking change among them is called out
+under **Changed** with its migration.
 
 The section for a version is what the release notes for its tag are built from, so keep a version's
 entry written for someone deciding whether to upgrade.
 
-## [Unreleased]
+## [1.0.0] - 2026-09-10
+
+The version where the promises stop being provisional. `docs/api-stability.md` was written before the
+tag on purpose; this is the tag it was written for, and from here the recorded public API of the three
+published modules, the closed `Change` vocabulary and the three declared exception types only change in
+a major version.
+
+Two things had to happen first. One is a retraction: `PatchFailure.Reason` was declared closed in
+`0.7.0` and is not — a minor version may declare a further reason, and freezing the set for the length
+of `1.x` would have made the next supported shape choose between a major version and a reason that
+misdescribes itself. Better to loosen it before the tag than to discover it after.
+
+The other is that the promises are now checked by the build rather than by a maintainer remembering.
+A consumer build resolving only the three published coordinates compiles and runs inside
+`./gradlew check`, the regeneration claim has a test that spans two builds, and every message
+`docs/errors.md` quotes is compared to the source that emits it.
+
+No behaviour of the library changes in this release. If you are on `0.7.0` and do not match
+`PatchFailure.Reason` exhaustively without an `else`, the upgrade is the version number.
 
 ### Added
+
+- **The release is checked, not inspected.** A new unpublished `kdiff-integration` module drives a
+  Gradle TestKit build that declares only `kdiff-annotations`, `kdiff-runtime` and `kdiff-processor`,
+  resolved as artifacts from a repository under `build/`, then annotates a class, compiles it and runs
+  the generated differ. It is the only thing in the repository that reads a generated POM — the sample
+  and the tutorial consume the *project*, so a descriptor missing a dependency was invisible to them.
+  It also asserts that neither KotlinPoet nor the KSP API reaches a consumer's compile classpath.
+  Nothing is published to `~/.m2` and nothing needs the network or a credential.
+
+- **The incremental-regeneration promise has a test.** The same harness builds a consumer twice with an
+  edit between the runs, and checks both halves: that editing a declaration a differ read regenerates
+  that differ, and that an unrelated annotated class's generated file is left exactly as the first
+  build wrote it. `0.7.0` fixed a real bug here, found by reasoning, because nothing could catch it.
+
+- **Every message `docs/errors.md` quotes is checked against the source that emits it.**
+  `DocumentationMessagesSpec` cuts each source message into the runs of text the code states literally
+  and requires the page's quotation to contain them in order, so rewording a diagnostic without editing
+  the page fails `check`. `CONTRIBUTING.md` loses the paragraph that admitted this hole.
+
+- **The toolchain versions the README names are pinned to the build.** The `kotlin("jvm")` and KSP
+  plugin versions in the install snippet, and the Kotlin badge, now fail the build when they name
+  something the build does not use — the same treatment the published coordinates already had, applied
+  to the other half of the block a reader copies.
 
 - **The recorded API and the promised API are stated as two different things.**
   [`docs/api-stability.md`](docs/api-stability.md) §1 now names the entries the ABI dump records
@@ -544,7 +586,7 @@ First release.
 
 - JDK 17 or later; built against a JVM 21 toolchain, Kotlin 2.4.10 and KSP 2.3.11.
 
-[Unreleased]: https://github.com/rcapraro/kdiff/compare/v0.7.0...HEAD
+[1.0.0]: https://github.com/rcapraro/kdiff/compare/v0.7.0...v1.0.0
 [0.7.0]: https://github.com/rcapraro/kdiff/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/rcapraro/kdiff/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rcapraro/kdiff/compare/v0.4.0...v0.5.0
