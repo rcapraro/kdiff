@@ -58,6 +58,6 @@
 
 - [x] 5.1 Run `./gradlew check` and verify it passes with no ABI dump change, since no published source
   moved.
-- [ ] 5.2 Tag the next release and watch the first Central publish through; confirm the three
+- [x] 5.2 Tag the next release and watch the first Central publish through; confirm the three
   coordinates resolve from a scratch Gradle project declaring only `mavenCentral()`, and that the IDE
   shows KDoc on `Differ`. Record the outcome in the release's notes if anything needed a manual step.
