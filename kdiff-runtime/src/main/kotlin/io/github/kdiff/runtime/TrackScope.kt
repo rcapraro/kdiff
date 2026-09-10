@@ -5,8 +5,8 @@ package io.github.kdiff.runtime
  *
  * Declared again in `kdiff-annotations` as the default of `@Trackable`. An annotation default has to
  * be a compile-time constant in the module declaring the annotation, and neither module may depend on
- * the other: that one carries no dependencies at all, and this one carries none but the Kotlin
- * standard library.
+ * the other: neither depends on any kdiff module or third-party library, and each carries nothing but
+ * the Kotlin standard library.
  */
 public const val UNLIMITED_DEPTH: Int = -1
 

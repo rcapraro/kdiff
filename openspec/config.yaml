@@ -9,7 +9,8 @@ context: |
   that a human would be happy to read.
 
   ## Modules (Gradle multi-project, all Kotlin/JVM)
-  - `kdiff-annotations`: annotations only (`@Diffable` and its parameters). No dependencies.
+  - `kdiff-annotations`: annotations only (`@Diffable` and its parameters). Depends on no kdiff
+    module and no third-party library; like every Kotlin module it carries the Kotlin stdlib.
   - `kdiff-runtime`: shared result types (`Diff`, `Change`, `FieldPath`, ...) and the interfaces the
     generated code targets. Depends only on the Kotlin stdlib. Never depends on the processor.
   - `kdiff-processor`: `SymbolProcessorProvider` + `SymbolProcessor`, KotlinPoet code generation.

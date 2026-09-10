@@ -95,9 +95,9 @@ dump like anything else.
 
 Kotlin/JVM only, built and published against a JVM 21 toolchain. No reflection library: property
 references are stdlib, so `kotlin-reflect` is not a dependency and is not required at runtime.
-`kdiff-annotations` depends on nothing at all; `kdiff-runtime` depends only on the Kotlin standard
-library; `kdiff-processor` is compile-time only, applied through the `ksp` configuration, and is never
-on a consumer's runtime classpath.
+`kdiff-annotations` and `kdiff-runtime` each depend on no kdiff module and no third-party library,
+carrying nothing but the Kotlin standard library; `kdiff-processor` is compile-time only, applied
+through the `ksp` configuration, and is never on a consumer's runtime classpath.
 
 ## 7. Decided, and not done
 

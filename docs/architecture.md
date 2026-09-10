@@ -12,7 +12,7 @@ three work.
                                                   |
   +---------------------+                         |
   | kdiff-annotations   |  annotations only,      |   +----------------+
-  | @Diffable, @DiffKey |  no dependencies at all |   | kdiff-sample   |
+  | @Diffable, @DiffKey |  Kotlin stdlib only     |   | kdiff-sample   |
   +---------------------+                         |   | every shape,   |
              ^                                    |   | end to end     |
              | depends on                         |   +----------------+

@@ -38,7 +38,8 @@ generated code, and generated Kotlin a human would be happy to read.
 
 ## Module graph — the dependency rules are load-bearing
 
-- `kdiff-annotations` — annotations only, **no dependencies at all**.
+- `kdiff-annotations` — annotations only. **Depends on no kdiff module and no third-party library**;
+  like every Kotlin module it carries the Kotlin stdlib.
 - `kdiff-runtime` — result types (`Diff`, `Change`, `FieldPath`), the capability interfaces generated
   code targets, and the hand-written DSL. **Depends only on the Kotlin stdlib** — not on the
   annotations module, not on the processor.

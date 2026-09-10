@@ -5,8 +5,8 @@ package io.github.kdiff.annotations
  *
  * Declared again in `kdiff-runtime` for the `trackScope { }` DSL. An annotation default has to be a
  * compile-time constant in the module declaring the annotation, and neither module may depend on the
- * other: this one carries no dependencies at all, and `kdiff-runtime` carries none but the Kotlin
- * standard library.
+ * other: neither depends on any kdiff module or third-party library, and each carries nothing but the
+ * Kotlin standard library.
  */
 public const val UNLIMITED_DEPTH: Int = -1
 
